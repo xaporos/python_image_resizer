@@ -14,11 +14,69 @@ class ImageResizerApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Resizer")
-        self.setGeometry(100, 100, 1200, 800)  # Initial size
-        self.setMinimumSize(800, 600)  # Minimum size
+        self.setGeometry(100, 100, 1200, 800)
+        self.setMinimumSize(800, 600)
+        
+        # Set application style
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f0f0f0;
+            }
+            QPushButton {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px 15px;
+                min-width: 80px;
+                margin: 2px;
+            }
+            QPushButton:hover {
+                background-color: #e6e6e6;
+                border-color: #adadad;
+            }
+            QPushButton:checked {
+                background-color: #e6e6e6;
+                border: 2px solid #2196F3;
+            }
+            QLabel {
+                color: #333333;
+            }
+            QComboBox {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+                min-width: 100px;
+            }
+            QSlider {
+                margin: 10px;
+            }
+            QSlider::groove:horizontal {
+                height: 8px;
+                background: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #2196F3;
+                border: 1px solid #2196F3;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }
+            QListWidget {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QSplitter::handle {
+                background-color: #cccccc;
+            }
+        """)
         
         # Initialize variables
-        self.images = {}  # Dictionary to store image paths and their PIL Image objects
+        self.images = {}
         self.current_image = None
         self.aspect_ratio = 1.0
         
@@ -31,7 +89,7 @@ class ImageResizerApp(QMainWindow):
         
         # Size presets
         self.size_presets = {
-            "Custom": 0,
+            "Custom": None,
             "Small (800px)": 800,
             "Medium (1200px)": 1200,
             "Large (1600px)": 1600
@@ -46,118 +104,141 @@ class ImageResizerApp(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Create toolbar
+        # Create toolbar with spacing
         toolbar = QHBoxLayout()
+        toolbar.setSpacing(10)
         main_layout.addLayout(toolbar)
         
-        # Add select button
-        self.select_btn = QPushButton("Select Images")
-        self.select_btn.clicked.connect(self.select_files)
-        toolbar.addWidget(self.select_btn)
+        # Group file operations
+        file_group = QHBoxLayout()
+        file_group.setSpacing(5)
         
-        # Add size preset dropdown
-        toolbar.addWidget(QLabel("Size:"))
+        self.select_btn = QPushButton("Select Images")
+        file_group.addWidget(self.select_btn)
+        
+        toolbar.addLayout(file_group)
+        toolbar.addSpacing(20)  # Add space between groups
+        
+        # Group size controls
+        size_group = QHBoxLayout()
+        size_group.setSpacing(5)
+        
+        size_label = QLabel("Size:")
+        size_label.setStyleSheet("margin-right: 5px;")
+        size_group.addWidget(size_label)
+        
         self.size_combo = QComboBox()
         self.size_combo.addItems(self.size_presets.keys())
-        self.size_combo.currentTextChanged.connect(self.preset_selected)
-        toolbar.addWidget(self.size_combo)
+        size_group.addWidget(self.size_combo)
         
-        # Add quality slider and value label
-        toolbar.addWidget(QLabel("Quality:"))
-        quality_layout = QHBoxLayout()
-        toolbar.addLayout(quality_layout)
+        toolbar.addLayout(size_group)
+        toolbar.addSpacing(20)
+        
+        # Group quality controls
+        quality_group = QHBoxLayout()
+        quality_group.setSpacing(5)
+        
+        quality_label = QLabel("Quality:")
+        quality_label.setStyleSheet("margin-right: 5px;")
+        quality_group.addWidget(quality_label)
         
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setMinimum(1)
         self.quality_slider.setMaximum(100)
         self.quality_slider.setValue(85)
-        self.quality_slider.valueChanged.connect(self.quality_changed)
-        quality_layout.addWidget(self.quality_slider)
+        quality_group.addWidget(self.quality_slider)
         
         self.quality_label = QLabel("85%")
-        self.quality_label.setMinimumWidth(40)  # Ensure enough space for the text
-        quality_layout.addWidget(self.quality_label)
+        self.quality_label.setMinimumWidth(40)
+        quality_group.addWidget(self.quality_label)
         
-        # Add resize button
+        toolbar.addLayout(quality_group)
+        toolbar.addSpacing(20)
+        
+        # Group resize buttons
+        resize_group = QHBoxLayout()
+        resize_group.setSpacing(5)
+        
         self.resize_btn = QPushButton("Resize Selected")
-        self.resize_btn.clicked.connect(self.resize_image)
-        self.resize_btn.setEnabled(False)
-        toolbar.addWidget(self.resize_btn)
+        resize_group.addWidget(self.resize_btn)
         
-        # Add resize all button
         self.resize_all_btn = QPushButton("Resize All")
-        self.resize_all_btn.clicked.connect(self.resize_all_images)
-        self.resize_all_btn.setEnabled(False)
-        toolbar.addWidget(self.resize_all_btn)
+        resize_group.addWidget(self.resize_all_btn)
         
-        # Create drawing toolbar
+        toolbar.addLayout(resize_group)
+        
+        # Create drawing toolbar with better spacing
         drawing_toolbar = QHBoxLayout()
+        drawing_toolbar.setSpacing(10)
         main_layout.addLayout(drawing_toolbar)
         
-        # Drawing tools
+        # Left side - Drawing tools
+        tools_group = QHBoxLayout()
+        tools_group.setSpacing(5)
+        
         self.pencil_btn = QPushButton("🖊 Pencil")
-        self.pencil_btn.clicked.connect(lambda: self.set_tool("pencil"))
-        self.pencil_btn.setCheckable(True)
-        self.pencil_btn.setChecked(True)
-        drawing_toolbar.addWidget(self.pencil_btn)
+        tools_group.addWidget(self.pencil_btn)
         
         self.rect_btn = QPushButton("⬜ Rectangle")
-        self.rect_btn.clicked.connect(lambda: self.set_tool("rectangle"))
-        self.rect_btn.setCheckable(True)
-        drawing_toolbar.addWidget(self.rect_btn)
+        tools_group.addWidget(self.rect_btn)
         
         self.circle_btn = QPushButton("⭕ Circle")
-        self.circle_btn.clicked.connect(lambda: self.set_tool("circle"))
-        self.circle_btn.setCheckable(True)
-        drawing_toolbar.addWidget(self.circle_btn)
+        tools_group.addWidget(self.circle_btn)
         
         self.arrow_btn = QPushButton("➡ Arrow")
-        self.arrow_btn.clicked.connect(lambda: self.set_tool("arrow"))
-        self.arrow_btn.setCheckable(True)
-        drawing_toolbar.addWidget(self.arrow_btn)
+        tools_group.addWidget(self.arrow_btn)
         
-        # Add separator
-        separator = QLabel(" | ")
-        drawing_toolbar.addWidget(separator)
+        drawing_toolbar.addLayout(tools_group)
+        drawing_toolbar.addSpacing(20)
         
-        # Add undo/redo buttons
-        self.undo_btn = QPushButton("↺ Undo")
-        self.undo_btn.clicked.connect(self.undo)
-        self.undo_btn.setEnabled(False)
-        drawing_toolbar.addWidget(self.undo_btn)
-        
-        self.redo_btn = QPushButton("↪ Redo")
-        self.redo_btn.clicked.connect(self.redo)
-        self.redo_btn.setEnabled(False)
-        drawing_toolbar.addWidget(self.redo_btn)
-        
-        # Add save button
-        self.save_btn = QPushButton("💾 Save")
-        self.save_btn.clicked.connect(self.save_changes)
-        drawing_toolbar.addWidget(self.save_btn)
-        
-        # Add separator
-        separator2 = QLabel(" | ")
-        drawing_toolbar.addWidget(separator2)
-        
-        # Color picker
+        # Center - Color picker
         self.color_btn = QPushButton("🎨 Color")
-        self.color_btn.clicked.connect(self.choose_color)
         drawing_toolbar.addWidget(self.color_btn)
+        drawing_toolbar.addSpacing(20)
+        
+        # Right side - Edit tools
+        edit_group = QHBoxLayout()
+        edit_group.setSpacing(5)
+        
+        self.undo_btn = QPushButton("↺ Undo")
+        edit_group.addWidget(self.undo_btn)
+        
+        self.redo_btn = QPushButton("↻ Redo")
+        edit_group.addWidget(self.redo_btn)
+        
+        self.save_btn = QPushButton("💾 Save")
+        edit_group.addWidget(self.save_btn)
+        
+        # Add stretch to push edit group to the right
+        drawing_toolbar.addStretch()
+        drawing_toolbar.addLayout(edit_group)
         
         # Create splitter for list and preview
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                width: 1px;
+                background-color: #cccccc;
+            }
+            QSplitter::handle:hover {
+                background-color: #2196F3;
+            }
+        """)
         main_layout.addWidget(splitter)
         
         # Create list widget for images
         self.image_list = QListWidget()
+        self.image_list.setMaximumWidth(250)  # Limit the width of the list
         self.image_list.currentItemChanged.connect(self.image_selected)
         splitter.addWidget(self.image_list)
         
         # Create right panel for preview and info
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 0, 0, 0)  # Add left margin for spacing from list
         splitter.addWidget(right_panel)
         
         # Create canvas for drawing
@@ -175,7 +256,33 @@ class ImageResizerApp(QMainWindow):
         right_layout.addWidget(self.info_label)
         
         # Set splitter sizes
-        splitter.setSizes([300, 900])  # Left panel 300px, right panel 900px
+        splitter.setSizes([250, 950])  # Left panel 250px, right panel 950px
+        
+        # Connect select button
+        self.select_btn.clicked.connect(self.select_files)
+        
+        # Connect quality slider
+        self.quality_slider.valueChanged.connect(self.quality_changed)
+        
+        # Drawing tools connections
+        self.pencil_btn.clicked.connect(lambda: self.set_tool("pencil"))
+        self.rect_btn.clicked.connect(lambda: self.set_tool("rectangle"))
+        self.circle_btn.clicked.connect(lambda: self.set_tool("circle"))
+        self.arrow_btn.clicked.connect(lambda: self.set_tool("arrow"))
+        
+        # Edit tools connections
+        self.undo_btn.clicked.connect(self.undo)
+        self.redo_btn.clicked.connect(self.redo)
+        self.save_btn.clicked.connect(self.save_changes)
+        self.color_btn.clicked.connect(self.choose_color)
+        
+        # Connect resize buttons
+        self.resize_btn.clicked.connect(self.resize_image)
+        self.resize_all_btn.clicked.connect(self.resize_all_images)
+        
+        # Initially disable resize buttons
+        self.resize_btn.setEnabled(False)
+        self.resize_all_btn.setEnabled(False)
 
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -270,10 +377,10 @@ File size: {file_size:.2f} MB"""
             
         try:
             # Get dimensions
+            current_width, current_height = self.current_image.size
+            
             if self.size_combo.currentText() != "Custom":
-                # Calculate new dimensions based on preset
                 target_width = self.size_presets[self.size_combo.currentText()]
-                current_width, current_height = self.current_image.size
                 
                 # Only resize if image is larger than target
                 if current_width > target_width:
@@ -283,18 +390,22 @@ File size: {file_size:.2f} MB"""
                     # Keep original size if image is smaller
                     width, height = current_width, current_height
             else:
-                # For custom, maintain original dimensions
-                width, height = self.current_image.size
+                # For custom, keep original size
+                width, height = current_width, current_height
             
-            # Resize image
-            resized_image = self.current_image.resize((width, height), Image.Resampling.LANCZOS)
+            # Create a copy of the image for resizing
+            resized_image = self.current_image.copy()
+            
+            # Only resize if dimensions changed
+            if (width, height) != current_width:
+                resized_image = resized_image.resize((width, height), Image.Resampling.LANCZOS)
             
             # Get original file extension
             current_item = self.image_list.currentItem()
             if not current_item:
                 return
             file_path = self.get_file_path_from_item(current_item)
-            original_ext = os.path.splitext(file_path)[1]
+            original_ext = os.path.splitext(file_path)[1].lower()
             
             # Save dialog
             save_path, _ = QFileDialog.getSaveFileName(
@@ -305,25 +416,33 @@ File size: {file_size:.2f} MB"""
             )
             
             if save_path:
-                # Save with quality for JPEG
+                # Get original size before saving
+                original_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
+                
+                # Save with appropriate settings based on format
                 if save_path.lower().endswith(('.jpg', '.jpeg')):
-                    # Use optimize=True for better compression
                     resized_image.save(save_path, 
                                      quality=self.quality_slider.value(),
+                                     optimize=True)
+                elif save_path.lower().endswith('.png'):
+                    resized_image.save(save_path, 
                                      optimize=True,
-                                     progressive=True)
+                                     compress_level=9)
                 else:
-                    resized_image.save(save_path, optimize=True)
-                    
-                # Show success message with file size info
-                original_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
-                new_size = os.path.getsize(save_path) / (1024 * 1024)  # MB
+                    resized_image.save(save_path)
                 
+                # Calculate new size and reduction percentage
+                new_size = os.path.getsize(save_path) / (1024 * 1024)  # MB
+                reduction = ((original_size - new_size) / original_size * 100)
+                
+                # Show detailed success message
                 QMessageBox.information(self, "Success", 
                     f"Image resized successfully!\n\n"
                     f"Original size: {original_size:.2f} MB\n"
                     f"New size: {new_size:.2f} MB\n"
-                    f"Reduction: {((original_size - new_size) / original_size * 100):.1f}%")
+                    f"Reduction: {reduction:.1f}%\n\n"
+                    f"Original dimensions: {current_width}x{current_height}\n"
+                    f"New dimensions: {width}x{height}")
                 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
@@ -359,25 +478,37 @@ File size: {file_size:.2f} MB"""
                         # Keep original size if image is smaller
                         width, height = current_width, current_height
                 else:
-                    # For custom, maintain original dimensions
+                    # For custom, keep original size
                     width, height = current_width, current_height
                 
-                # Resize image
-                resized_image = image.resize((width, height), Image.Resampling.LANCZOS)
+                # Create a copy of the image for resizing
+                resized_image = image.copy()
                 
-                # Save file
+                # Only resize if dimensions changed
+                if (width, height) != current_width:
+                    resized_image = resized_image.resize((width, height), Image.Resampling.LANCZOS)
+                
                 output_path = os.path.join(output_dir, f"resized_{os.path.basename(file_path)}")
+                
+                # Get original size before saving
+                original_size = os.path.getsize(file_path)
+                
+                # Save with appropriate settings
                 if output_path.lower().endswith(('.jpg', '.jpeg')):
                     resized_image.save(output_path, 
                                      quality=self.quality_slider.value(),
+                                     optimize=True)
+                elif output_path.lower().endswith('.png'):
+                    resized_image.save(output_path, 
                                      optimize=True,
-                                     progressive=True)
+                                     compress_level=9)
                 else:
-                    resized_image.save(output_path, optimize=True)
+                    resized_image.save(output_path)
                 
                 # Track sizes
-                total_original_size += os.path.getsize(file_path)
-                total_new_size += os.path.getsize(output_path)
+                new_size = os.path.getsize(output_path)
+                total_original_size += original_size
+                total_new_size += new_size
                 success_count += 1
                 
             except Exception as e:
@@ -385,26 +516,32 @@ File size: {file_size:.2f} MB"""
                                   f"Failed to resize {os.path.basename(file_path)}: {str(e)}")
         
         if success_count > 0:
+            # Calculate total statistics
             total_original_mb = total_original_size / (1024 * 1024)
             total_new_mb = total_new_size / (1024 * 1024)
-            reduction = ((total_original_size - total_new_size) / total_original_size * 100)
+            total_reduction = ((total_original_size - total_new_size) / total_original_size * 100)
             
-            QMessageBox.information(self, "Success", 
-                f"Successfully resized {success_count} of {len(self.images)} images\n\n"
-                f"Total original size: {total_original_mb:.2f} MB\n"
-                f"Total new size: {total_new_mb:.2f} MB\n"
-                f"Total reduction: {reduction:.1f}%")
+            # Create simplified message
+            message = f"Successfully resized {success_count} of {len(self.images)} images\n\n"
+            message += f"Total original size: {total_original_mb:.2f} MB\n"
+            message += f"Total new size: {total_new_mb:.2f} MB\n"
+            message += f"Total reduction: {total_reduction:.1f}%"
+            
+            QMessageBox.information(self, "Success", message)
 
     def quality_changed(self, value):
+        """Update quality label when slider value changes"""
         self.quality_label.setText(f"{value}%")
 
     def set_tool(self, tool):
+        """Set the current drawing tool"""
         self.current_tool = tool
         # Uncheck all buttons except the selected one
         for btn in [self.pencil_btn, self.rect_btn, self.circle_btn, self.arrow_btn]:
             btn.setChecked(btn.text().split()[1].lower() == tool)
 
     def choose_color(self):
+        """Open color picker dialog"""
         color = QColorDialog.getColor(self.current_color, self)
         if color.isValid():
             self.current_color = color
@@ -439,7 +576,7 @@ File size: {file_size:.2f} MB"""
             current_pos = self.get_image_coordinates(event.pos())
             
             if self.current_tool == "pencil":
-                # For pencil, draw directly and save state periodically
+                # For pencil, draw directly
                 pixmap = self.canvas.pixmap()
                 painter = QPainter(pixmap)
                 painter.setPen(QPen(self.current_color, self.line_width, Qt.SolidLine))
