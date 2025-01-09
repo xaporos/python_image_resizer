@@ -27,7 +27,7 @@ class ImageResizerApp(QMainWindow):
                 border: 1px solid #cccccc;
                 border-radius: 4px;
                 padding: 5px 15px;
-                min-width: 80px;
+                min-width: 40px;
                 margin: 2px;
             }
             QPushButton:hover {
@@ -170,6 +170,47 @@ class ImageResizerApp(QMainWindow):
         
         toolbar.addLayout(resize_group)
         
+        # Update button styling for tool buttons
+        tool_button_style = """
+            QPushButton {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 3px;
+                min-width: 28px;
+                max-width: 28px;
+                min-height: 28px;
+                max-height: 28px;
+                margin: 2px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #e6e6e6;
+                border-color: #adadad;
+            }
+            QPushButton:checked {
+                background-color: #e6e6e6;
+                border: 2px solid #2196F3;
+            }
+        """
+        
+        # Standard button style for undo/redo/save/apply
+        standard_button_style = """
+            QPushButton {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 3px 15px;
+                min-height: 28px;
+                max-height: 28px;
+                margin: 2px;
+            }
+            QPushButton:hover {
+                background-color: #e6e6e6;
+                border-color: #adadad;
+            }
+        """
+        
         # Create drawing toolbar with better spacing
         drawing_toolbar = QHBoxLayout()
         drawing_toolbar.setSpacing(10)
@@ -179,24 +220,27 @@ class ImageResizerApp(QMainWindow):
         tools_group = QHBoxLayout()
         tools_group.setSpacing(5)
         
-        self.pencil_btn = QPushButton("🖊 Pencil")
+        self.pencil_btn = QPushButton("🖊")
+        self.pencil_btn.setStyleSheet(tool_button_style)
         tools_group.addWidget(self.pencil_btn)
         
-        self.rect_btn = QPushButton("⬜ Rectangle")
+        self.rect_btn = QPushButton("⬜")
+        self.rect_btn.setStyleSheet(tool_button_style)
         tools_group.addWidget(self.rect_btn)
         
-        self.circle_btn = QPushButton("⭕ Circle")
+        self.circle_btn = QPushButton("⭕")
+        self.circle_btn.setStyleSheet(tool_button_style)
         tools_group.addWidget(self.circle_btn)
         
-        self.arrow_btn = QPushButton("➡ Arrow")
+        self.arrow_btn = QPushButton("➡")
+        self.arrow_btn.setStyleSheet(tool_button_style)
         tools_group.addWidget(self.arrow_btn)
         
-        drawing_toolbar.addLayout(tools_group)
-        drawing_toolbar.addSpacing(20)
+        self.color_btn = QPushButton("🎨")
+        self.color_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.color_btn)
         
-        # Center - Color picker
-        self.color_btn = QPushButton("🎨 Color")
-        drawing_toolbar.addWidget(self.color_btn)
+        drawing_toolbar.addLayout(tools_group)
         drawing_toolbar.addSpacing(20)
         
         # Right side - Edit tools
@@ -204,13 +248,20 @@ class ImageResizerApp(QMainWindow):
         edit_group.setSpacing(5)
         
         self.undo_btn = QPushButton("↺ Undo")
+        self.undo_btn.setStyleSheet(standard_button_style)
         edit_group.addWidget(self.undo_btn)
         
         self.redo_btn = QPushButton("↻ Redo")
+        self.redo_btn.setStyleSheet(standard_button_style)
         edit_group.addWidget(self.redo_btn)
         
         self.save_btn = QPushButton("💾 Save")
+        self.save_btn.setStyleSheet(standard_button_style)
         edit_group.addWidget(self.save_btn)
+        
+        self.apply_btn = QPushButton("✓ Apply")
+        self.apply_btn.setStyleSheet(standard_button_style)
+        edit_group.addWidget(self.apply_btn)
         
         # Add stretch to push edit group to the right
         drawing_toolbar.addStretch()
@@ -273,7 +324,8 @@ class ImageResizerApp(QMainWindow):
         # Edit tools connections
         self.undo_btn.clicked.connect(self.undo)
         self.redo_btn.clicked.connect(self.redo)
-        self.save_btn.clicked.connect(self.save_changes)
+        self.save_btn.clicked.connect(self.save_with_drawings)
+        self.apply_btn.clicked.connect(self.save_changes)
         self.color_btn.clicked.connect(self.choose_color)
         
         # Connect resize buttons
@@ -536,9 +588,21 @@ File size: {file_size:.2f} MB"""
     def set_tool(self, tool):
         """Set the current drawing tool"""
         self.current_tool = tool
-        # Uncheck all buttons except the selected one
-        for btn in [self.pencil_btn, self.rect_btn, self.circle_btn, self.arrow_btn]:
-            btn.setChecked(btn.text().split()[1].lower() == tool)
+        # Map tools to their buttons
+        tool_buttons = {
+            "pencil": self.pencil_btn,
+            "rectangle": self.rect_btn,
+            "circle": self.circle_btn,
+            "arrow": self.arrow_btn
+        }
+        
+        # Uncheck all buttons
+        for btn in tool_buttons.values():
+            btn.setChecked(False)
+            
+        # Check the selected tool's button
+        if tool in tool_buttons:
+            tool_buttons[tool].setChecked(True)
 
     def choose_color(self):
         """Open color picker dialog"""
@@ -686,6 +750,40 @@ File size: {file_size:.2f} MB"""
         """Update the enabled state of undo/redo buttons"""
         self.undo_btn.setEnabled(bool(self.history))
         self.redo_btn.setEnabled(bool(self.redo_stack))
+
+    def save_with_drawings(self):
+        """Save the current image with drawings without any compression or resizing"""
+        if not self.current_image or not self.canvas.pixmap():
+            QMessageBox.warning(self, "Warning", "No image to save!")
+            return
+            
+        try:
+            # Get current file path
+            current_item = self.image_list.currentItem()
+            if not current_item:
+                return
+            file_path = self.get_file_path_from_item(current_item)
+            original_ext = os.path.splitext(file_path)[1].lower()
+            
+            # Save dialog
+            save_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Image",
+                f"edited_{os.path.basename(file_path)}",
+                f"Image Files (*{original_ext})"
+            )
+            
+            if save_path:
+                # Get the current pixmap with drawings
+                pixmap = self.canvas.pixmap()
+                
+                # Save directly without any processing
+                pixmap.save(save_path)
+                
+                QMessageBox.information(self, "Success", "Image saved successfully!")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
 
     def save_changes(self):
         """Save the current image with drawings"""
