@@ -4,7 +4,7 @@ import math
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                            QHBoxLayout, QPushButton, QLabel, QFileDialog, 
                            QMessageBox, QComboBox, QSlider, QListWidget,
-                           QSplitter, QColorDialog)
+                           QSplitter, QColorDialog, QMenuBar, QMenu)
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor
 from PIL import Image
@@ -13,67 +13,32 @@ import numpy as np
 class ImageResizerApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Image Resizer")
+        self.setWindowTitle("resizex")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(800, 600)
         
-        # Set application style
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f0;
-            }
-            QPushButton {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px 15px;
-                min-width: 40px;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                background-color: #e6e6e6;
-                border-color: #adadad;
-            }
-            QPushButton:checked {
-                background-color: #e6e6e6;
-                border: 2px solid #2196F3;
-            }
-            QLabel {
-                color: #333333;
-            }
-            QComboBox {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
-                min-width: 100px;
-            }
-            QSlider {
-                margin: 10px;
-            }
-            QSlider::groove:horizontal {
-                height: 8px;
-                background: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-            }
-            QSlider::handle:horizontal {
-                background: #2196F3;
-                border: 1px solid #2196F3;
-                width: 18px;
-                margin: -5px 0;
-                border-radius: 9px;
-            }
-            QListWidget {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 5px;
-            }
-            QSplitter::handle {
-                background-color: #cccccc;
-            }
-        """)
+        # Create menu bar
+        menubar = QMenuBar(self)
+        self.setMenuBar(menubar)
+        menubar.setNativeMenuBar(False)
+        
+        # Create File menu
+        file_menu = QMenu('&File', self)
+        menubar.addMenu(file_menu)
+        
+        # Add File menu actions
+        open_action = file_menu.addAction('Open Images...')
+        open_action.triggered.connect(self.select_files)
+        
+        save_selected_action = file_menu.addAction('Save Selected')
+        save_selected_action.triggered.connect(self.resize_image)
+        
+        save_all_action = file_menu.addAction('Save All')
+        save_all_action.triggered.connect(self.resize_all_images)
+        
+        # Create Edit menu
+        edit_menu = QMenu('&Edit', self)
+        menubar.addMenu(edit_menu)
         
         # Initialize variables
         self.images = {}
@@ -99,7 +64,7 @@ class ImageResizerApp(QMainWindow):
         self.history = []  # Store previous states
         self.redo_stack = []  # Store states that were undone
         self.max_history = 20  # Maximum number of states to store
-        
+
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -107,182 +72,266 @@ class ImageResizerApp(QMainWindow):
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Create toolbar with spacing
+        # Set light theme with Facebook blue
+        self.setStyleSheet("""
+            QMainWindow, QWidget {
+                background-color: #ffffff;
+                color: #333333;
+            }
+            QMenuBar {
+                background-color: #ffffff;
+                color: #333333;
+            }
+            QMenuBar::item:selected {
+                background-color: #1877F2;
+                color: white;
+            }
+            QMenu {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #dadde1;
+            }
+            QMenu::item:selected {
+                background-color: #1877F2;
+                color: white;
+            }
+            QPushButton {
+                background-color: #1877F2;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 15px;
+                min-width: 28px;
+                min-height: 28px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #166fe5;
+            }
+            QPushButton:disabled {
+                background-color: #dadde1;
+                color: #606770;
+            }
+            QLabel {
+                color: #333333;
+            }
+            QComboBox {
+                background-color: white;
+                border: 1px solid #dadde1;
+                border-radius: 4px;
+                padding: 5px;
+                min-width: 100px;
+                color: #333333;
+            }
+            QComboBox:hover {
+                border-color: #1877F2;
+            }
+            QComboBox::drop-down {
+                border: none;  /* Remove the dropdown arrow border */
+            }
+            QComboBox::down-arrow {
+                width: 0;  /* Hide the dropdown arrow */
+                height: 0;
+            }
+            QSlider {
+                margin: 10px;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #dadde1;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                background: #1877F2;
+                width: 12px;
+                height: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }
+            QListWidget {
+                background-color: white;
+                border: 1px solid #dadde1;
+                border-radius: 4px;
+                padding: 5px;
+                color: #333333;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #1877F2;
+                color: white;
+            }
+            QSplitter::handle {
+                background-color: #dadde1;
+            }
+        """)
+        
+        # Create simplified toolbar
         toolbar = QHBoxLayout()
         toolbar.setSpacing(10)
         main_layout.addLayout(toolbar)
         
-        # Group file operations
-        file_group = QHBoxLayout()
-        file_group.setSpacing(5)
+        # Drawing tools group
+        tools_group = QHBoxLayout()
+        tools_group.setSpacing(5)
         
-        self.select_btn = QPushButton("Select Images")
-        file_group.addWidget(self.select_btn)
+        # Common style for all tool buttons
+        tool_button_style = """
+            QPushButton {
+                border: none;
+                background: transparent;
+                font-size: 18px;  /* Slightly reduced font size for better consistency */
+                padding: 5px;
+                color: #808080;  /* Grey color for inactive state */
+            }
+            QPushButton:checked {
+                color: #1877F2;  /* Primary color (Facebook blue) for active state */
+            }
+            QPushButton:hover {
+                color: #404040;  /* Darker grey on hover */
+            }
+        """
         
-        toolbar.addLayout(file_group)
-        toolbar.addSpacing(20)  # Add space between groups
+        # Create buttons with icons only
+        self.pencil_btn = QPushButton("✎")
+        self.pencil_btn.setFlat(True)
+        self.pencil_btn.setCheckable(True)
+        self.pencil_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.pencil_btn)
         
-        # Group size controls
-        size_group = QHBoxLayout()
-        size_group.setSpacing(5)
+        self.arrow_btn = QPushButton("➔")
+        self.arrow_btn.setFlat(True)
+        self.arrow_btn.setCheckable(True)
+        self.arrow_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.arrow_btn)
         
-        size_label = QLabel("Size:")
-        size_label.setStyleSheet("margin-right: 5px;")
-        size_group.addWidget(size_label)
+        self.circle_btn = QPushButton("○")  # Changed back to simpler circle
+        self.circle_btn.setFlat(True)
+        self.circle_btn.setCheckable(True)
+        self.circle_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.circle_btn)
+        
+        self.rect_btn = QPushButton("□")
+        self.rect_btn.setFlat(True)
+        self.rect_btn.setCheckable(True)
+        self.rect_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.rect_btn)
+        
+        self.text_btn = QPushButton("T")
+        self.text_btn.setFlat(True)
+        self.text_btn.setCheckable(True)
+        self.text_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.text_btn)
+        
+        toolbar.addLayout(tools_group)
+        toolbar.addStretch()
+        
+        # Size and quality controls
+        controls_group = QHBoxLayout()
         
         self.size_combo = QComboBox()
-        self.size_combo.addItems(self.size_presets.keys())
-        size_group.addWidget(self.size_combo)
+        self.size_combo.addItems(["Small", "Medium", "Large"])
+        self.size_combo.setFixedWidth(80)
+        self.size_combo.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                border: 1px solid #dadde1;
+                border-radius: 4px;
+                padding: 5px;
+                color: #333333;
+                text-align: center;
+                padding-left: 15px;  /* Add padding to center the text */
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                width: 0;
+                height: 0;
+            }
+            /* Style for the dropdown list */
+            QComboBox QAbstractItemView {
+                selection-background-color: #1877F2;
+                selection-color: white;
+                padding: 5px;
+            }
+            /* Center text in the dropdown items */
+            QComboBox::item {
+                text-align: center;
+            }
+        """)
+        controls_group.addWidget(self.size_combo)
         
-        toolbar.addLayout(size_group)
-        toolbar.addSpacing(20)
+        # Add spacer between combo and slider
+        controls_group.addSpacing(10)
         
-        # Group quality controls
-        quality_group = QHBoxLayout()
-        quality_group.setSpacing(5)
-        
-        quality_label = QLabel("Quality:")
-        quality_label.setStyleSheet("margin-right: 5px;")
-        quality_group.addWidget(quality_label)
+        # Create container for slider and label
+        slider_container = QWidget()
+        slider_container.setFixedWidth(180)  # Slightly reduced from 200
+        slider_layout = QHBoxLayout(slider_container)
+        slider_layout.setContentsMargins(0, 0, 0, 0)
         
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setMinimum(1)
         self.quality_slider.setMaximum(100)
-        self.quality_slider.setValue(85)
-        quality_group.addWidget(self.quality_slider)
+        self.quality_slider.setValue(80)
+        self.quality_slider.setFixedWidth(120)
+        slider_layout.addWidget(self.quality_slider)
         
-        self.quality_label = QLabel("85%")
-        self.quality_label.setMinimumWidth(40)
-        quality_group.addWidget(self.quality_label)
+        self.quality_label = QLabel("80%")
+        slider_layout.addWidget(self.quality_label)
         
-        toolbar.addLayout(quality_group)
-        toolbar.addSpacing(20)
+        controls_group.addWidget(slider_container)
         
-        # Group resize buttons
-        resize_group = QHBoxLayout()
-        resize_group.setSpacing(5)
+        # Add spacer between quality controls and buttons
+        controls_group.addSpacing(10)  # Reduced from 20 to 10
         
-        self.resize_btn = QPushButton("Resize Selected")
-        resize_group.addWidget(self.resize_btn)
+        # Custom style for resize buttons with reduced vertical padding
+        resize_button_style = """
+            QPushButton {
+                background-color: #1877F2;
+                border: none;
+                border-radius: 4px;
+                padding: 3px 15px;  /* Reduced vertical padding from 5px to 3px */
+                min-width: 28px;
+                min-height: 22px;  /* Reduced from 28px */
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #166fe5;
+            }
+            QPushButton:disabled {
+                background-color: #dadde1;
+                color: #606770;
+            }
+        """
+        
+        self.resize_btn = QPushButton("Resize")
+        self.resize_btn.setStyleSheet(resize_button_style)
+        controls_group.addWidget(self.resize_btn)
         
         self.resize_all_btn = QPushButton("Resize All")
-        resize_group.addWidget(self.resize_all_btn)
+        self.resize_all_btn.setStyleSheet(resize_button_style)
+        controls_group.addWidget(self.resize_all_btn)
         
-        toolbar.addLayout(resize_group)
-        
-        # Update button styling for tool buttons
-        tool_button_style = """
-            QPushButton {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 3px;
-                min-width: 28px;
-                max-width: 28px;
-                min-height: 28px;
-                max-height: 28px;
-                margin: 2px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #e6e6e6;
-                border-color: #adadad;
-            }
-            QPushButton:checked {
-                background-color: #e6e6e6;
-                border: 2px solid #2196F3;
-            }
-        """
-        
-        # Standard button style for undo/redo/save/apply
-        standard_button_style = """
-            QPushButton {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 3px 15px;
-                min-height: 28px;
-                max-height: 28px;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                background-color: #e6e6e6;
-                border-color: #adadad;
-            }
-        """
-        
-        # Create drawing toolbar with better spacing
-        drawing_toolbar = QHBoxLayout()
-        drawing_toolbar.setSpacing(10)
-        main_layout.addLayout(drawing_toolbar)
-        
-        # Left side - Drawing tools
-        tools_group = QHBoxLayout()
-        tools_group.setSpacing(5)
-        
-        self.pencil_btn = QPushButton("🖊")
-        self.pencil_btn.setStyleSheet(tool_button_style)
-        tools_group.addWidget(self.pencil_btn)
-        
-        self.rect_btn = QPushButton("⬜")
-        self.rect_btn.setStyleSheet(tool_button_style)
-        tools_group.addWidget(self.rect_btn)
-        
-        self.circle_btn = QPushButton("⭕")
-        self.circle_btn.setStyleSheet(tool_button_style)
-        tools_group.addWidget(self.circle_btn)
-        
-        self.arrow_btn = QPushButton("➡")
-        self.arrow_btn.setStyleSheet(tool_button_style)
-        tools_group.addWidget(self.arrow_btn)
-        
-        self.color_btn = QPushButton("🎨")
-        self.color_btn.setStyleSheet(tool_button_style)
-        tools_group.addWidget(self.color_btn)
-        
-        drawing_toolbar.addLayout(tools_group)
-        drawing_toolbar.addSpacing(20)
-        
-        # Right side - Edit tools
-        edit_group = QHBoxLayout()
-        edit_group.setSpacing(5)
-        
-        self.undo_btn = QPushButton("↺ Undo")
-        self.undo_btn.setStyleSheet(standard_button_style)
-        edit_group.addWidget(self.undo_btn)
-        
-        self.redo_btn = QPushButton("↻ Redo")
-        self.redo_btn.setStyleSheet(standard_button_style)
-        edit_group.addWidget(self.redo_btn)
-        
-        self.save_btn = QPushButton("💾 Save")
-        self.save_btn.setStyleSheet(standard_button_style)
-        edit_group.addWidget(self.save_btn)
-        
-        self.apply_btn = QPushButton("✓ Apply")
-        self.apply_btn.setStyleSheet(standard_button_style)
-        edit_group.addWidget(self.apply_btn)
-        
-        # Add stretch to push edit group to the right
-        drawing_toolbar.addStretch()
-        drawing_toolbar.addLayout(edit_group)
+        toolbar.addLayout(controls_group)
         
         # Create splitter for list and preview
         splitter = QSplitter(Qt.Horizontal)
         splitter.setStyleSheet("""
             QSplitter::handle {
                 width: 1px;
-                background-color: #cccccc;
+                background-color: #3b3b3b;
             }
             QSplitter::handle:hover {
-                background-color: #2196F3;
+                background-color: #4b4b4b;
             }
         """)
         main_layout.addWidget(splitter)
         
         # Create list widget for images
         self.image_list = QListWidget()
-        self.image_list.setMaximumWidth(250)  # Limit the width of the list
+        self.image_list.setMaximumWidth(200)
         self.image_list.currentItemChanged.connect(self.image_selected)
         splitter.addWidget(self.image_list)
         
@@ -307,10 +356,7 @@ class ImageResizerApp(QMainWindow):
         right_layout.addWidget(self.info_label)
         
         # Set splitter sizes
-        splitter.setSizes([250, 950])  # Left panel 250px, right panel 950px
-        
-        # Connect select button
-        self.select_btn.clicked.connect(self.select_files)
+        splitter.setSizes([200, 950])  # Left panel 200px, right panel 950px
         
         # Connect quality slider
         self.quality_slider.valueChanged.connect(self.quality_changed)
@@ -320,13 +366,7 @@ class ImageResizerApp(QMainWindow):
         self.rect_btn.clicked.connect(lambda: self.set_tool("rectangle"))
         self.circle_btn.clicked.connect(lambda: self.set_tool("circle"))
         self.arrow_btn.clicked.connect(lambda: self.set_tool("arrow"))
-        
-        # Edit tools connections
-        self.undo_btn.clicked.connect(self.undo)
-        self.redo_btn.clicked.connect(self.redo)
-        self.save_btn.clicked.connect(self.save_with_drawings)
-        self.apply_btn.clicked.connect(self.save_changes)
-        self.color_btn.clicked.connect(self.choose_color)
+        self.text_btn.clicked.connect(lambda: self.set_tool("text"))
         
         # Connect resize buttons
         self.resize_btn.clicked.connect(self.resize_image)
@@ -392,7 +432,7 @@ class ImageResizerApp(QMainWindow):
                           bytes_per_line, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimage)
             
-            # Set the pixmap to the canvas instead of preview_label
+            # Set the pixmap to the canvas
             self.canvas.setPixmap(pixmap)
             
             # Update info
@@ -410,7 +450,6 @@ File size: {file_size:.2f} MB"""
             # Clear history when loading new image
             self.history.clear()
             self.redo_stack.clear()
-            self.update_undo_redo_buttons()
 
     def preset_selected(self, selection):
         if self.current_image and selection != "Custom":
@@ -543,7 +582,7 @@ File size: {file_size:.2f} MB"""
                 output_path = os.path.join(output_dir, f"resized_{os.path.basename(file_path)}")
                 
                 # Get original size before saving
-                original_size = os.path.getsize(file_path)
+                original_size = os.path.getsize(file_path) / (1024 * 1024)
                 
                 # Save with appropriate settings
                 if output_path.lower().endswith(('.jpg', '.jpeg')):
@@ -593,7 +632,8 @@ File size: {file_size:.2f} MB"""
             "pencil": self.pencil_btn,
             "rectangle": self.rect_btn,
             "circle": self.circle_btn,
-            "arrow": self.arrow_btn
+            "arrow": self.arrow_btn,
+            "text": self.text_btn
         }
         
         # Uncheck all buttons
@@ -603,12 +643,6 @@ File size: {file_size:.2f} MB"""
         # Check the selected tool's button
         if tool in tool_buttons:
             tool_buttons[tool].setChecked(True)
-
-    def choose_color(self):
-        """Open color picker dialog"""
-        color = QColorDialog.getColor(self.current_color, self)
-        if color.isValid():
-            self.current_color = color
 
     def get_image_coordinates(self, event_pos):
         """Convert window coordinates to image coordinates"""
@@ -664,6 +698,8 @@ File size: {file_size:.2f} MB"""
                                       current_pos.y() - self.last_point.y())
                 elif self.current_tool == "arrow":
                     self.draw_arrow(painter, self.last_point, current_pos)
+                elif self.current_tool == "text":
+                    self.draw_text(painter, self.last_point, current_pos)
                 
                 painter.end()
                 self.canvas.setPixmap(pixmap)
@@ -687,6 +723,8 @@ File size: {file_size:.2f} MB"""
                                       current_pos.y() - self.last_point.y())
                 elif self.current_tool == "arrow":
                     self.draw_arrow(painter, self.last_point, current_pos)
+                elif self.current_tool == "text":
+                    self.draw_text(painter, self.last_point, current_pos)
                 
                 painter.end()
                 self.canvas.setPixmap(pixmap)
@@ -718,111 +756,6 @@ File size: {file_size:.2f} MB"""
             self.history.append(self.canvas.pixmap().copy())
             if len(self.history) > self.max_history:
                 self.history.pop(0)
-            self.update_undo_redo_buttons()
-
-    def undo(self):
-        """Undo last action"""
-        if self.history:
-            # Save current state to redo stack
-            current_state = self.canvas.pixmap().copy()
-            self.redo_stack.append(current_state)
-            
-            # Restore previous state
-            previous_state = self.history.pop()
-            self.canvas.setPixmap(previous_state)
-            
-            self.update_undo_redo_buttons()
-
-    def redo(self):
-        """Redo last undone action"""
-        if self.redo_stack:
-            # Save current state to history
-            current_state = self.canvas.pixmap().copy()
-            self.history.append(current_state)
-            
-            # Restore redo state
-            redo_state = self.redo_stack.pop()
-            self.canvas.setPixmap(redo_state)
-            
-            self.update_undo_redo_buttons()
-
-    def update_undo_redo_buttons(self):
-        """Update the enabled state of undo/redo buttons"""
-        self.undo_btn.setEnabled(bool(self.history))
-        self.redo_btn.setEnabled(bool(self.redo_stack))
-
-    def save_with_drawings(self):
-        """Save the current image with drawings without any compression or resizing"""
-        if not self.current_image or not self.canvas.pixmap():
-            QMessageBox.warning(self, "Warning", "No image to save!")
-            return
-            
-        try:
-            # Get current file path
-            current_item = self.image_list.currentItem()
-            if not current_item:
-                return
-            file_path = self.get_file_path_from_item(current_item)
-            original_ext = os.path.splitext(file_path)[1].lower()
-            
-            # Save dialog
-            save_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save Image",
-                f"edited_{os.path.basename(file_path)}",
-                f"Image Files (*{original_ext})"
-            )
-            
-            if save_path:
-                # Get the current pixmap with drawings
-                pixmap = self.canvas.pixmap()
-                
-                # Save directly without any processing
-                pixmap.save(save_path)
-                
-                QMessageBox.information(self, "Success", "Image saved successfully!")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
-
-    def save_changes(self):
-        """Save the current image with drawings"""
-        if not self.current_image or not self.canvas.pixmap():
-            return
-            
-        try:
-            # Get the current pixmap
-            pixmap = self.canvas.pixmap()
-            
-            # Convert QPixmap to QImage
-            image = pixmap.toImage()
-            
-            # Convert QImage to bytes
-            ptr = image.bits()
-            ptr.setsize(image.byteCount())
-            arr = np.array(ptr).reshape(image.height(), image.width(), 4)  # 4 for RGBA
-            
-            # Convert BGR to RGB (Qt uses BGR, PIL uses RGB)
-            arr_rgb = arr[:, :, [2, 1, 0]]  # Reorder color channels
-            
-            # Create PIL Image
-            pil_image = Image.fromarray(arr_rgb)
-            
-            # Get current file path
-            current_item = self.image_list.currentItem()
-            if not current_item:
-                return
-                
-            file_path = self.get_file_path_from_item(current_item)
-            
-            # Update the stored image
-            self.images[file_path] = pil_image
-            
-            # Show success message
-            QMessageBox.information(self, "Success", "Changes saved to image!")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save changes: {str(e)}")
 
 def main():
     app = QApplication(sys.argv)
