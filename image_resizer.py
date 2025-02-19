@@ -20,7 +20,6 @@ class ImageResizerApp(QMainWindow):
         # Create menu bar
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
-        menubar.setNativeMenuBar(False)
         
         # Create File menu
         file_menu = QMenu('&File', self)
@@ -180,7 +179,7 @@ class ImageResizerApp(QMainWindow):
             QPushButton {
                 border: none;
                 background: transparent;
-                font-size: 18px;  /* Slightly reduced font size for better consistency */
+                font-size: 18px;
                 padding: 5px;
                 color: #808080;  /* Grey color for inactive state */
             }
@@ -191,7 +190,29 @@ class ImageResizerApp(QMainWindow):
                 color: #404040;  /* Darker grey on hover */
             }
         """
+         # Add Save Selected button
+        self.save_btn = QPushButton("⤓")  # Changed to a simple downward arrow that matches other icons
+        self.save_btn.setFlat(True)
+        self.save_btn.setStyleSheet(tool_button_style)
+        self.save_btn.clicked.connect(self.save)
+        tools_group.addWidget(self.save_btn)
+
+        # Add undo/redo buttons
+        self.undo_btn = QPushButton("↺")  # Changed to a more standard curved undo arrow
+        self.undo_btn.setFlat(True)
+        self.undo_btn.setStyleSheet(tool_button_style)
+        self.undo_btn.clicked.connect(self.undo)
+        tools_group.addWidget(self.undo_btn)
         
+        self.redo_btn = QPushButton("↻")  # Changed to a more standard curved redo arrow
+        self.redo_btn.setFlat(True)
+        self.redo_btn.setStyleSheet(tool_button_style)
+        self.redo_btn.clicked.connect(self.redo)
+        tools_group.addWidget(self.redo_btn)
+
+        # Add larger spacing before undo/redo buttons
+        tools_group.addSpacing(180)
+
         # Create buttons with icons only
         self.pencil_btn = QPushButton("✎")
         self.pencil_btn.setFlat(True)
@@ -222,6 +243,7 @@ class ImageResizerApp(QMainWindow):
         self.text_btn.setCheckable(True)
         self.text_btn.setStyleSheet(tool_button_style)
         tools_group.addWidget(self.text_btn)
+        
         
         toolbar.addLayout(tools_group)
         toolbar.addStretch()
@@ -331,7 +353,8 @@ class ImageResizerApp(QMainWindow):
         
         # Create list widget for images
         self.image_list = QListWidget()
-        self.image_list.setMaximumWidth(200)
+        self.image_list.setMinimumWidth(280)
+        self.image_list.setMaximumWidth(280)
         self.image_list.currentItemChanged.connect(self.image_selected)
         splitter.addWidget(self.image_list)
         
@@ -756,6 +779,59 @@ File size: {file_size:.2f} MB"""
             self.history.append(self.canvas.pixmap().copy())
             if len(self.history) > self.max_history:
                 self.history.pop(0)
+
+    def undo(self):
+        if len(self.history) > 0:
+            # Save current state to redo stack
+            if self.canvas.pixmap():
+                self.redo_stack.append(self.canvas.pixmap().copy())
+            # Restore previous state
+            previous_state = self.history.pop()
+            self.canvas.setPixmap(previous_state)
+            # Update button states
+            self.undo_btn.setEnabled(len(self.history) > 0)
+            self.redo_btn.setEnabled(True)
+
+    def redo(self):
+        if len(self.redo_stack) > 0:
+            # Save current state to history
+            if self.canvas.pixmap():
+                self.history.append(self.canvas.pixmap().copy())
+            # Restore redo state
+            next_state = self.redo_stack.pop()
+            self.canvas.setPixmap(next_state)
+            # Update button states
+            self.undo_btn.setEnabled(True)
+            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+
+    def save(self):
+        """Save the current image with drawings"""
+        if not self.canvas.pixmap():
+            QMessageBox.warning(self, "Warning", "No image to save!")
+            return
+            
+        # Get original file extension
+        current_item = self.image_list.currentItem()
+        if not current_item:
+            return
+            
+        file_path = self.get_file_path_from_item(current_item)
+        original_ext = os.path.splitext(file_path)[1].lower()
+        
+        # Save dialog
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Image",
+            f"edited_{os.path.basename(file_path)}",
+            f"Image Files (*{original_ext})"
+        )
+        
+        if save_path:
+            try:
+                self.canvas.pixmap().save(save_path)
+                QMessageBox.information(self, "Success", "Image saved successfully!")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
 
 def main():
     app = QApplication(sys.argv)
