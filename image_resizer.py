@@ -399,6 +399,10 @@ class ImageResizerApp(QMainWindow):
         self.resize_btn.setEnabled(False)
         self.resize_all_btn.setEnabled(False)
 
+        # Initially disable undo/redo buttons
+        self.undo_btn.setEnabled(False)
+        self.redo_btn.setEnabled(False)
+
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
@@ -688,9 +692,9 @@ File size: {file_size:.2f} MB"""
         if self.current_image and self.canvas.pixmap():
             self.drawing = True
             self.last_point = self.get_image_coordinates(event.pos())
-            self.temp_image = self.canvas.pixmap().copy()
             # Save state before starting new action
             self.save_state()
+            self.temp_image = self.canvas.pixmap().copy()
 
     def mouse_move(self, event):
         if self.drawing and self.current_image and self.canvas.pixmap():
@@ -753,6 +757,9 @@ File size: {file_size:.2f} MB"""
                 self.canvas.setPixmap(pixmap)
             
             self.drawing = False
+            # Update undo/redo button states
+            self.undo_btn.setEnabled(len(self.history) > 0)
+            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def draw_arrow(self, painter, start, end):
         # Draw the line
