@@ -4,11 +4,37 @@ import math
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                            QHBoxLayout, QPushButton, QLabel, QFileDialog, 
                            QMessageBox, QComboBox, QSlider, QListWidget,
-                           QSplitter, QColorDialog, QMenuBar, QMenu)
-from PyQt5.QtCore import Qt, QPoint, QRect, QByteArray, QBuffer
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor
+                           QSplitter, QColorDialog, QMenuBar, QMenu,
+                           QGraphicsScene, QGraphicsView, QGraphicsRectItem,
+                           QGraphicsPixmapItem, QGraphicsEllipseItem, QGraphicsLineItem,
+                           QGraphicsPathItem, QGraphicsTextItem)
+from PyQt5.QtCore import Qt, QPoint, QRect, QByteArray, QBuffer, QRectF, QLineF, QPointF
+from PyQt5.QtGui import (QPixmap, QImage, QPainter, QPen, QColor, QPainterPath, QBrush)
 from PIL import Image
 import numpy as np
+
+class CustomGraphicsView(QGraphicsView):
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.parent = parent
+        self.setRenderHint(QPainter.Antialiasing)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def mousePressEvent(self, event):
+        if self.parent:
+            self.parent.mouse_press(event)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.parent:
+            self.parent.mouse_move(event)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.parent:
+            self.parent.mouse_release(event)
+        super().mouseReleaseEvent(event)
 
 class ImageResizerApp(QMainWindow):
     def __init__(self):
@@ -46,8 +72,8 @@ class ImageResizerApp(QMainWindow):
         
         # Drawing variables
         self.drawing = False
-        self.last_point = QPoint()
-        self.current_tool = "pencil"
+        self.last_point = None
+        self.current_tool = None
         self.current_color = QColor(Qt.red)
         self.line_width = 2
         
@@ -59,31 +85,53 @@ class ImageResizerApp(QMainWindow):
             "Large (1600px)": 1600
         }
         
-        # Add undo/redo history
-        self.history = []  # Store previous states
-        self.redo_stack = []  # Store states that were undone
-        self.max_history = 20  # Maximum number of states to store
-
-        # Add dictionary to store edited images and their histories
-        self.edited_images = {}  # Store edited versions of images
-        self.image_histories = {}  # Store undo history for each image
-        self.image_redo_stacks = {}  # Store redo stack for each image
-
+        # Add history-related variables
+        self.history = []
+        self.redo_stack = []
+        self.image_histories = {}
+        self.image_redo_stacks = {}
+        self.max_history = 10
+        
+        # Add storage for edited images and dimensions
+        self.edited_images = {}
+        self.edited_file_sizes = {}
+        self.original_dimensions = {}
+        self.current_dimensions = {}
+        self.file_sizes = {}
+        
+        # Add variables for drawing tools
+        self.drawing = False
+        self.last_point = None
+        self.current_tool = None
+        self.temp_image = None
+        
         # Add crop mode variables
         self.cropping = False
         self.crop_start = None
         self.crop_rect = None
         
-        # Add dictionary to store original dimensions
-        self.original_dimensions = {}  # Store original image dimensions
+        # Add variables for rectangle manipulation
+        self.selected_rect = None
+        self.drag_handle = None
+        self.drag_start = None
+        self.rect_handles = []
+        self.handle_size = 8
+        self.manipulating = False
+
+        # Add variables for circle tool
+        self.circle_item = None
+
+        # Add variables for pencil tool
+        self.pencil_path = None
         
-        # Add dictionary to store current dimensions
-        self.current_dimensions = {}  # Store current dimensions for each image
-        
-        # Add dictionary to store file sizes
-        self.file_sizes = {}  # Store original file sizes
-        self.edited_file_sizes = {}  # Store sizes of edited images
-        
+        # Add variables for arrow tool
+        self.arrow_item = None
+        self.arrow_start = None
+
+        # Add overlay for crop tool
+        self.overlay_item = None
+        self.crop_overlay_color = QColor(0, 0, 0, 127)  # Semi-transparent black
+
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -238,6 +286,7 @@ class ImageResizerApp(QMainWindow):
         self.crop_btn.setFlat(True)
         self.crop_btn.setCheckable(True)
         self.crop_btn.setStyleSheet(tool_button_style)
+        self.crop_btn.clicked.connect(lambda: self.set_tool("crop"))
         tools_group.addWidget(self.crop_btn)
 
         self.pencil_btn = QPushButton("✎")
@@ -411,19 +460,26 @@ class ImageResizerApp(QMainWindow):
         right_layout.setContentsMargins(10, 0, 0, 0)  # Add left margin for spacing from list
         splitter.addWidget(right_panel)
         
-        # Create canvas for drawing
-        self.canvas = QLabel()
-        self.canvas.setMouseTracking(True)
-        self.canvas.mousePressEvent = self.mouse_press
-        self.canvas.mouseMoveEvent = self.mouse_move
-        self.canvas.mouseReleaseEvent = self.mouse_release
-        self.canvas.setAlignment(Qt.AlignCenter)
-        right_layout.addWidget(self.canvas)
+        # Create graphics scene and view
+        self.scene = QGraphicsScene()
+        self.view = CustomGraphicsView(self.scene, self)
+        self.view.setRenderHint(QPainter.Antialiasing)
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        right_layout.addWidget(self.view)
         
-        # Add info label
-        self.info_label = QLabel("No image selected")
-        self.info_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        right_layout.addWidget(self.info_label)
+        # Add variables for drawing tools
+        self.drawing = False
+        self.last_point = None
+        self.current_tool = None
+        self.temp_image = None
+        
+        # Add variables for rectangle tool
+        self.rect_item = None
+        self.selected_rect = None
+        self.drag_handle = None
+        self.drag_start = None
+        self.manipulating = False
         
         # Set splitter sizes
         splitter.setSizes([200, 950])  # Left panel 200px, right panel 950px
@@ -437,6 +493,7 @@ class ImageResizerApp(QMainWindow):
         self.circle_btn.clicked.connect(lambda: self.set_tool("circle"))
         self.arrow_btn.clicked.connect(lambda: self.set_tool("arrow"))
         self.text_btn.clicked.connect(lambda: self.set_tool("text"))
+        self.crop_btn.clicked.connect(lambda: self.set_tool("crop"))
         
         # Connect resize buttons
         self.resize_btn.clicked.connect(self.resize_image)
@@ -449,9 +506,6 @@ class ImageResizerApp(QMainWindow):
         # Initially disable undo/redo buttons
         self.undo_btn.setEnabled(False)
         self.redo_btn.setEnabled(False)
-
-        # Connect crop button
-        self.crop_btn.clicked.connect(lambda: self.set_tool("crop"))
 
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -481,15 +535,23 @@ class ImageResizerApp(QMainWindow):
     def image_selected(self, current, previous):
         if current:
             # Save current canvas state and history if there is one
-            if previous and self.canvas.pixmap():
+            if previous and self.view.scene().items():
                 prev_path = self.get_file_path_from_item(previous)
                 if prev_path:
-                    self.edited_images[prev_path] = self.canvas.pixmap().copy()
+                    # Get the pixmap item (should be the last item in the scene)
+                    for item in self.view.scene().items():
+                        if isinstance(item, QGraphicsPixmapItem):
+                            self.edited_images[prev_path] = item.pixmap().copy()
+                            break
+                    
                     # Save the history and file size for the previous image
                     self.image_histories[prev_path] = self.history.copy()
                     self.image_redo_stacks[prev_path] = self.redo_stack.copy()
                     if prev_path in self.edited_file_sizes:
-                        self.edited_file_sizes[prev_path] = self.calculate_file_size(self.canvas.pixmap())
+                        for item in self.view.scene().items():
+                            if isinstance(item, QGraphicsPixmapItem):
+                                self.edited_file_sizes[prev_path] = self.calculate_file_size(item.pixmap())
+                                break
             
             file_path = self.get_file_path_from_item(current)
             if file_path in self.images:
@@ -541,16 +603,14 @@ class ImageResizerApp(QMainWindow):
 
     def update_preview_and_info(self, file_path):
         if self.current_image:
-            # Store original dimensions when first loading the image
-            if file_path not in self.original_dimensions:
-                self.original_dimensions[file_path] = self.current_image.size
-                self.current_dimensions[file_path] = self.current_image.size
+            # Clear previous scene
+            self.scene.clear()
             
-            # Create preview (without affecting original dimensions)
+            # Create preview
             preview = self.current_image.copy()
-            preview.thumbnail((800, 800))  # Resize for preview only
+            preview.thumbnail((800, 800))
             
-            # Convert PIL image to QPixmap for display only
+            # Convert to QPixmap and add to scene
             preview_array = np.array(preview)
             height, width, channels = preview_array.shape
             bytes_per_line = channels * width
@@ -559,8 +619,11 @@ class ImageResizerApp(QMainWindow):
                           bytes_per_line, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimage)
             
-            # Set the preview pixmap
-            self.canvas.setPixmap(pixmap)
+            # Add pixmap to scene
+            self.scene.addPixmap(pixmap)
+            # Convert QRect to QRectF
+            self.view.setSceneRect(QRectF(pixmap.rect()))
+            self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
             
             # Use stored dimensions and original file size
             orig_width, orig_height = self.original_dimensions[file_path]
@@ -569,18 +632,28 @@ class ImageResizerApp(QMainWindow):
             # Use edited file size if exists, otherwise use original
             file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
             
-            info = f"""File: {os.path.basename(file_path)}
+            # Create info label
+            info_label = QLabel(f"""File: {os.path.basename(file_path)}
 Original size: {orig_width} × {orig_height} pixels
 Current size: {current_width} × {current_height} pixels
-File size: {file_size:.2f} MB"""
+File size: {file_size:.2f} MB""")
             
-            self.info_label.setText(info)
+            # Add info label to scene
+            self.scene.addWidget(info_label)
             self.aspect_ratio = current_width / current_height
 
     def update_preview_with_edited(self, file_path):
         if self.edited_images.get(file_path):
+            # Clear previous scene
+            self.scene.clear()
+            
+            # Add edited pixmap
             edited_pixmap = self.edited_images[file_path]
-            self.canvas.setPixmap(edited_pixmap)
+            self.scene.addPixmap(edited_pixmap)
+            
+            # Set scene rect and fit view
+            self.view.setSceneRect(QRectF(edited_pixmap.rect()))
+            self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
             
             # Use stored dimensions
             orig_width, orig_height = self.original_dimensions[file_path]
@@ -592,12 +665,14 @@ File size: {file_size:.2f} MB"""
             else:
                 file_size = self.file_sizes[file_path]
             
-            info = f"""File: {os.path.basename(file_path)}
+            # Create info label
+            info_label = QLabel(f"""File: {os.path.basename(file_path)}
 Original size: {orig_width} × {orig_height} pixels
 Current size: {current_width} × {current_height} pixels
-File size: {file_size:.2f} MB"""
+File size: {file_size:.2f} MB""")
             
-            self.info_label.setText(info)
+            # Add info label to scene using addWidget
+            self.scene.addWidget(info_label)
             self.aspect_ratio = current_width / current_height
 
     def preset_selected(self, selection):
@@ -605,10 +680,10 @@ File size: {file_size:.2f} MB"""
             width = self.size_presets[selection]
             height = int(width / self.aspect_ratio)
             
-            current_text = self.info_label.text().split('\n')
+            current_text = self.view.scene().items()[0].text().split('\n')
             if len(current_text) >= 3:
                 current_text[2] = f"New size: {width} × {height} pixels"
-                self.info_label.setText('\n'.join(current_text))
+                self.view.scene().items()[0].setText('\n'.join(current_text))
 
     def resize_image(self):
         if not self.current_image:
@@ -775,8 +850,42 @@ File size: {file_size:.2f} MB"""
 
     def set_tool(self, tool):
         """Set the current drawing tool"""
+        print(f"Setting tool to: {tool}")  # Debug print
+        
+        # Clean up previous tool
+        if self.current_tool == "crop":
+            if self.crop_rect:
+                self.scene.removeItem(self.crop_rect)
+            if self.overlay_item:
+                self.scene.removeItem(self.overlay_item)
+            if hasattr(self, 'path_item') and self.path_item in self.scene.items():
+                self.scene.removeItem(self.path_item)
+            self.crop_rect = None
+            self.overlay_item = None
+            self.path_item = None
+        
+        # Set up new tool
         self.current_tool = tool
-        # Map tools to their buttons
+        
+        # Initialize crop tool if selected
+        if tool == "crop":
+            print("Setting up crop tool")  # Debug print
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    rect = item.boundingRect()
+                    self.overlay_item = QGraphicsRectItem(rect)
+                    self.overlay_item.setBrush(QColor(0, 0, 0, 127))
+                    self.overlay_item.setPen(QPen(Qt.NoPen))
+                    self.scene.addItem(self.overlay_item)
+                    break
+        
+        # Reset states
+        self.drawing = False
+        self.cropping = False
+        self.manipulating = False
+        self.last_point = None
+        
+        # Update button states
         tool_buttons = {
             "crop": self.crop_btn,
             "pencil": self.pencil_btn,
@@ -789,208 +898,118 @@ File size: {file_size:.2f} MB"""
         # Uncheck all buttons
         for btn in tool_buttons.values():
             btn.setChecked(False)
-            
+        
         # Check the selected tool's button
         if tool in tool_buttons:
             tool_buttons[tool].setChecked(True)
 
-    def get_image_coordinates(self, event_pos):
-        """Convert window coordinates to image coordinates"""
-        pixmap = self.canvas.pixmap()
-        if not pixmap:
-            return event_pos
-        
-        # Get the canvas size and pixmap size
-        canvas_size = self.canvas.size()
-        pixmap_size = pixmap.size()
-        
-        # Calculate the offset (for centered image)
-        x_offset = (canvas_size.width() - pixmap_size.width()) // 2
-        y_offset = (canvas_size.height() - pixmap_size.height()) // 2
-        
-        # Adjust coordinates
-        return QPoint(event_pos.x() - x_offset, event_pos.y() - y_offset)
-
-    def mouse_press(self, event):
-        if not self.current_image or not self.canvas.pixmap():
+    def finalize_rectangle(self):
+        """Finalize the rectangle by drawing it permanently on the pixmap"""
+        if not self.rect_item:
             return
             
-        if self.current_tool == "crop":
-            self.cropping = True
-            self.crop_start = self.get_image_coordinates(event.pos())
-            # Save state before starting crop
-            self.save_state()
-            self.temp_image = self.canvas.pixmap().copy()
-        else:
-            # Existing drawing code
-            self.drawing = True
-            self.last_point = self.get_image_coordinates(event.pos())
-            self.save_state()
-            self.temp_image = self.canvas.pixmap().copy()
-
-    def mouse_move(self, event):
-        if not self.current_image or not self.canvas.pixmap():
-            return
-            
-        current_pos = self.get_image_coordinates(event.pos())
+        # Save state before making changes
+        self.save_state()
         
-        if self.current_tool == "crop" and self.cropping:
-            # Draw crop rectangle
-            pixmap = self.temp_image.copy()
+        # Find the pixmap item
+        pixmap = None
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                pixmap = item.pixmap().copy()
+                break
+        
+        if pixmap:
+            # Draw the rectangle on the pixmap
             painter = QPainter(pixmap)
-            
-            # Calculate crop rectangle
-            x = min(self.crop_start.x(), current_pos.x())
-            y = min(self.crop_start.y(), current_pos.y())
-            width = abs(current_pos.x() - self.crop_start.x())
-            height = abs(current_pos.y() - self.crop_start.y())
-            
-            # Create a semi-transparent overlay
-            overlay = QPixmap(pixmap.size())
-            overlay.fill(Qt.transparent)
-            overlay_painter = QPainter(overlay)
-            overlay_painter.fillRect(0, 0, pixmap.width(), pixmap.height(), QColor(0, 0, 0, 100))
-            overlay_painter.setCompositionMode(QPainter.CompositionMode_Clear)
-            overlay_painter.fillRect(x, y, width, height, Qt.transparent)
-            overlay_painter.end()
-            
-            # Draw the overlay on the main pixmap
-            painter.drawPixmap(0, 0, overlay)
-            
-            # Draw crop rectangle border
-            painter.setPen(QPen(Qt.white, 2, Qt.DashLine))
-            painter.drawRect(x, y, width, height)
-            
+            painter.setPen(QPen(self.current_color, self.line_width))
+            painter.drawRect(self.rect_item.rect())
             painter.end()
-            self.canvas.setPixmap(pixmap)
             
-            # Store current crop rectangle
-            self.crop_rect = QRect(x, y, width, height)
-        elif self.drawing:
-            # Existing drawing code
-            if self.current_tool == "pencil":
-                # For pencil, draw directly
-                pixmap = self.canvas.pixmap()
-                painter = QPainter(pixmap)
-                painter.setPen(QPen(self.current_color, self.line_width, Qt.SolidLine))
-                painter.drawLine(self.last_point, current_pos)
-                painter.end()
-                self.last_point = current_pos
-                self.canvas.setPixmap(pixmap)
-            else:
-                # For shapes, draw on temporary pixmap
-                pixmap = self.temp_image.copy()
-                painter = QPainter(pixmap)
-                painter.setPen(QPen(self.current_color, self.line_width, Qt.SolidLine))
-                
-                if self.current_tool == "rectangle":
-                    painter.drawRect(self.last_point.x(), self.last_point.y(),
-                                   current_pos.x() - self.last_point.x(),
-                                   current_pos.y() - self.last_point.y())
-                elif self.current_tool == "circle":
-                    painter.drawEllipse(self.last_point.x(), self.last_point.y(),
-                                      current_pos.x() - self.last_point.x(),
-                                      current_pos.y() - self.last_point.y())
-                elif self.current_tool == "arrow":
-                    self.draw_arrow(painter, self.last_point, current_pos)
-                elif self.current_tool == "text":
-                    self.draw_text(painter, self.last_point, current_pos)
-                
-                painter.end()
-                self.canvas.setPixmap(pixmap)
+            # Update the scene
+            self.scene.clear()
+            self.scene.addPixmap(pixmap)
+            
+            # Reset rectangle state
+            self.rect_item = None
+            
+            # Add info label back
+            self.update_info_label()
 
-    def mouse_release(self, event):
-        if self.current_tool == "crop" and self.cropping:
-            if self.crop_rect and self.crop_rect.isValid():
-                # Apply the crop
-                cropped_pixmap = self.temp_image.copy(self.crop_rect)
-                self.canvas.setPixmap(cropped_pixmap)
-                
-                # Update dimensions and file size for current image only
-                current_item = self.image_list.currentItem()
-                if current_item:
-                    file_path = self.get_file_path_from_item(current_item)
-                    if file_path:
-                        self.current_dimensions[file_path] = (cropped_pixmap.width(), cropped_pixmap.height())
-                        # Calculate and store new file size for edited image
-                        self.edited_file_sizes[file_path] = self.calculate_file_size(cropped_pixmap)
-                        self.update_image_info(cropped_pixmap, file_path)
-                
-                # Reset crop mode
-                self.cropping = False
-                self.crop_start = None
-                self.crop_rect = None
-                
-                # Update button states
-                self.undo_btn.setEnabled(len(self.history) > 0)
-                self.redo_btn.setEnabled(len(self.redo_stack) > 0)
-                
-                # Switch back to pencil tool
-                self.set_tool("pencil")
-        elif self.drawing:
-            # Existing drawing release code
-            current_pos = self.get_image_coordinates(event.pos())
+    def finalize_circle(self):
+        """Finalize the circle by drawing it permanently on the pixmap"""
+        if not self.circle_item:
+            return
             
-            if self.current_tool != "pencil":
-                pixmap = self.canvas.pixmap()
-                painter = QPainter(pixmap)
-                painter.setPen(QPen(self.current_color, self.line_width, Qt.SolidLine))
-                
-                if self.current_tool == "rectangle":
-                    painter.drawRect(self.last_point.x(), self.last_point.y(),
-                                   current_pos.x() - self.last_point.x(),
-                                   current_pos.y() - self.last_point.y())
-                elif self.current_tool == "circle":
-                    painter.drawEllipse(self.last_point.x(), self.last_point.y(),
-                                      current_pos.x() - self.last_point.x(),
-                                      current_pos.y() - self.last_point.y())
-                elif self.current_tool == "arrow":
-                    self.draw_arrow(painter, self.last_point, current_pos)
-                elif self.current_tool == "text":
-                    self.draw_text(painter, self.last_point, current_pos)
-                
-                painter.end()
-                self.canvas.setPixmap(pixmap)
+        # Save state before making changes
+        self.save_state()
+        
+        # Find the pixmap item
+        pixmap = None
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                pixmap = item.pixmap().copy()
+                break
+        
+        if pixmap:
+            # Draw the circle on the pixmap
+            painter = QPainter(pixmap)
+            painter.setPen(QPen(self.current_color, self.line_width))
+            painter.drawEllipse(self.circle_item.rect())
+            painter.end()
             
-            self.drawing = False
-            # Update undo/redo button states
-            self.undo_btn.setEnabled(len(self.history) > 0)
-            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+            # Update the scene
+            self.scene.clear()
+            self.scene.addPixmap(pixmap)
+            
+            # Reset circle state
+            self.circle_item = None
+            
+            # Add info label back
+            self.update_info_label()
 
-    def draw_arrow(self, painter, start, end):
-        # Draw the line
-        painter.drawLine(start, end)
+    def apply_rect_changes(self):
+        """Apply rectangle changes and exit manipulation mode"""
+        if not self.rect_item:
+            return
+            
+        # Save state before applying changes
+        self.save_state()
         
-        # Calculate arrow head
-        angle = math.atan2(end.y() - start.y(), end.x() - start.x())
-        arrow_size = 20
+        # Find the pixmap item
+        pixmap = None
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                pixmap = item.pixmap()
+                break
+                
+        if pixmap:
+            self.scene.clear()
+            self.scene.addPixmap(pixmap)
+            self.view.setSceneRect(QRectF(pixmap.rect()))
+            self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
         
-        # Calculate arrow head points
-        arrow_p1 = QPoint(end.x() - arrow_size * math.cos(angle - math.pi/6),
-                         end.y() - arrow_size * math.sin(angle - math.pi/6))
-        arrow_p2 = QPoint(end.x() - arrow_size * math.cos(angle + math.pi/6),
-                         end.y() - arrow_size * math.sin(angle + math.pi/6))
-        
-        # Draw arrow head
-        painter.drawLine(end, arrow_p1)
-        painter.drawLine(end, arrow_p2)
+        # Update temp image
+        self.rect_item = None
+        self.drawing = False
+        self.manipulating = False
 
     def save_state(self):
         """Save current state to history"""
-        if self.canvas.pixmap():
-            current_item = self.image_list.currentItem()
-            if current_item:
-                file_path = self.get_file_path_from_item(current_item)
-                if file_path:
-                    state = {
-                        'pixmap': self.canvas.pixmap().copy(),
-                        'current_dimensions': self.current_dimensions[file_path],
-                        'original_dimensions': self.original_dimensions[file_path]
-                    }
-                    self.history.append(state)
-                    if len(self.history) > self.max_history:
-                        self.history.pop(0)
-                    self.redo_stack.clear()
+        # Find the pixmap item
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                # Save current state
+                self.history.append(item.pixmap().copy())
+                if len(self.history) > self.max_history:
+                    self.history.pop(0)
+                
+                # Clear redo stack when new action is performed
+                self.redo_stack.clear()
+                
+                # Update button states
+                self.undo_btn.setEnabled(True)
+                self.redo_btn.setEnabled(False)
+                break
 
     def update_image_info(self, pixmap, file_path):
         """Update image information based on current pixmap"""
@@ -1006,83 +1025,89 @@ Original size: {orig_width} × {orig_height} pixels
 Current size: {width} × {height} pixels
 File size: {file_size:.2f} MB"""
         
-        self.info_label.setText(info)
+        self.view.scene().addItem(QLabel(info))
         self.aspect_ratio = width / height
 
     def undo(self):
+        """Undo the last action"""
         if len(self.history) > 0:
-            current_item = self.image_list.currentItem()
-            if current_item:
-                file_path = self.get_file_path_from_item(current_item)
-                if file_path:
+            # Reset all tool states
+            self.reset_tool_states()
+            
+            # Find current pixmap
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
                     # Save current state to redo stack
-                    if self.canvas.pixmap():
-                        current_state = {
-                            'pixmap': self.canvas.pixmap().copy(),
-                            'current_dimensions': self.current_dimensions[file_path],
-                            'original_dimensions': self.original_dimensions[file_path]
-                        }
-                        self.redo_stack.append(current_state)
-                    
-                    # Restore previous state
-                    previous_state = self.history.pop()
-                    self.canvas.setPixmap(previous_state['pixmap'])
-                    
-                    # Update dimensions
-                    self.current_dimensions[file_path] = previous_state['current_dimensions']
-                    orig_width, orig_height = previous_state['original_dimensions']
-                    current_width, current_height = previous_state['current_dimensions']
-                    
-                    # Reset to original file size if undoing to original state
-                    if len(self.history) == 0:
-                        if file_path in self.edited_file_sizes:
-                            del self.edited_file_sizes[file_path]
-                    
-                    # Use edited file size if exists, otherwise use original
-                    file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
-                    
-                    info = f"""File: {os.path.basename(file_path)}
-Original size: {orig_width} × {orig_height} pixels
-Current size: {current_width} × {current_height} pixels
-File size: {file_size:.2f} MB"""
-                    
-                    self.info_label.setText(info)
-                    self.aspect_ratio = current_width / current_height
-                    
-                    # Update button states
-                    self.undo_btn.setEnabled(len(self.history) > 0)
-                    self.redo_btn.setEnabled(True)
+                    self.redo_stack.append(item.pixmap().copy())
+                    break
+            
+            # Restore previous state
+            previous_pixmap = self.history.pop()
+            
+            # Update scene
+            self.scene.clear()
+            self.scene.addPixmap(previous_pixmap)
+            self.update_info_label()
+            
+            # Update button states
+            self.undo_btn.setEnabled(len(self.history) > 0)
+            self.redo_btn.setEnabled(True)
 
     def redo(self):
+        """Redo the last undone action"""
         if len(self.redo_stack) > 0:
-            current_item = self.image_list.currentItem()
-            if current_item:
-                file_path = self.get_file_path_from_item(current_item)
-                if file_path:
+            # Reset all tool states
+            self.reset_tool_states()
+            
+            # Find current pixmap
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
                     # Save current state to history
-                    if self.canvas.pixmap():
-                        current_state = {
-                            'pixmap': self.canvas.pixmap().copy(),
-                            'original_dimensions': self.original_dimensions.get(file_path)
-                        }
-                        self.history.append(current_state)
-                    
-                    # Restore redo state
-                    next_state = self.redo_stack.pop()
-                    self.canvas.setPixmap(next_state['pixmap'])
-                    if next_state['original_dimensions']:
-                        self.original_dimensions[file_path] = next_state['original_dimensions']
-                    
-                    # Update image information
-                    self.update_image_info(next_state['pixmap'], file_path)
-                    
-                    # Update button states
-                    self.undo_btn.setEnabled(True)
-                    self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+                    self.history.append(item.pixmap().copy())
+                    break
+            
+            # Restore next state
+            next_pixmap = self.redo_stack.pop()
+            
+            # Update scene
+            self.scene.clear()
+            self.scene.addPixmap(next_pixmap)
+            self.update_info_label()
+            
+            # Update button states
+            self.undo_btn.setEnabled(True)
+            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+
+    def reset_tool_states(self):
+        """Reset all tool states"""
+        # Reset drawing states
+        self.drawing = False
+        self.manipulating = False
+        self.last_point = None
+        self.drag_handle = None
+        self.drag_start = None
+        
+        # Reset tool items
+        self.rect_item = None
+        self.selected_rect = None
+        self.circle_item = None
+        self.arrow_item = None
+        self.pencil_path = None
+        
+        # Uncheck all tool buttons
+        self.pencil_btn.setChecked(False)
+        self.rect_btn.setChecked(False)
+        self.circle_btn.setChecked(False)
+        self.arrow_btn.setChecked(False)
+        self.text_btn.setChecked(False)
+        self.crop_btn.setChecked(False)
+        
+        # Reset current tool
+        self.current_tool = None
 
     def save(self):
         """Save the current image with drawings"""
-        if not self.canvas.pixmap():
+        if not self.view.scene().items():
             QMessageBox.warning(self, "Warning", "No image to save!")
             return
             
@@ -1104,10 +1129,334 @@ File size: {file_size:.2f} MB"""
         
         if save_path:
             try:
-                self.canvas.pixmap().save(save_path)
+                self.view.scene().items()[0].pixmap().save(save_path)
                 QMessageBox.information(self, "Success", "Image saved successfully!")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
+
+    def draw_arrow_head(self, start, end):
+        """Draw arrow head at the end point"""
+        if not self.arrow_item:
+            return
+            
+        # Find the pixmap item
+        pixmap = None
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                pixmap = item.pixmap().copy()
+                break
+                
+        if pixmap:
+            # Calculate arrow head points
+            line = QLineF(start, end)
+            angle = math.atan2(-line.dy(), line.dx())
+            arrow_size = 20.0
+            
+            arrow_p1 = QPointF(end.x() + arrow_size * math.cos(angle + math.pi/6),
+                             end.y() - arrow_size * math.sin(angle + math.pi/6))
+            arrow_p2 = QPointF(end.x() + arrow_size * math.cos(angle - math.pi/6),
+                             end.y() - arrow_size * math.sin(angle - math.pi/6))
+            
+            # Draw arrow head
+            painter = QPainter(pixmap)
+            painter.setPen(QPen(self.current_color, self.line_width))
+            painter.drawLine(end, arrow_p1)
+            painter.drawLine(end, arrow_p2)
+            painter.end()
+            
+            # Update scene
+            self.scene.clear()
+            self.scene.addPixmap(pixmap)
+            
+            # Add info label back
+            self.update_info_label()
+
+    def finalize_drawing(self):
+        """Finalize any drawing by rendering it to the pixmap"""
+        # Find the pixmap item
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                # Save state before making changes
+                self.save_state()
+                
+                # Update scene with current state
+                pixmap = item.pixmap().copy()
+                self.scene.clear()
+                self.scene.addPixmap(pixmap)
+                self.update_info_label()
+                
+                # Reset drawing state
+                self.drawing = False
+                self.pencil_path = None
+                self.arrow_item = None
+                self.last_point = None
+                break
+
+    def update_info_label(self):
+        """Update the info label with current image information"""
+        current_item = self.image_list.currentItem()
+        if current_item:
+            file_path = self.get_file_path_from_item(current_item)
+            if file_path:
+                orig_width, orig_height = self.original_dimensions[file_path]
+                current_width, current_height = self.current_dimensions[file_path]
+                file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                
+                info_label = QLabel(f"""File: {os.path.basename(file_path)}
+Original size: {orig_width} × {orig_height} pixels
+Current size: {current_width} × {current_height} pixels
+File size: {file_size:.2f} MB""")
+                
+                self.scene.addWidget(info_label)
+
+    def mouse_press(self, event):
+        if not self.current_image:
+            return
+            
+        pos = self.view.mapToScene(event.pos())
+        
+        if self.current_tool == "crop":
+            self.cropping = True
+            self.crop_start = pos
+            # Create crop rectangle with white dashed border
+            self.crop_rect = QGraphicsRectItem()
+            self.crop_rect.setPen(QPen(Qt.white, 2, Qt.DashLine))
+            self.scene.addItem(self.crop_rect)
+            
+        elif self.current_tool == "pencil":
+            self.drawing = True
+            self.last_point = pos
+            # Find and store the current pixmap
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.temp_image = item.pixmap().copy()
+                    break
+            # Save state before starting to draw
+            self.save_state()
+            
+        elif self.current_tool == "arrow":
+            self.drawing = True
+            self.arrow_start = pos
+            # Store original pixmap
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.temp_image = item.pixmap().copy()
+                    break
+            # Create arrow line for preview
+            self.arrow_item = QGraphicsLineItem()
+            self.arrow_item.setPen(QPen(self.current_color, self.line_width))
+            self.arrow_item.setZValue(2)  # Keep arrow preview on top
+            self.scene.addItem(self.arrow_item)
+            
+        elif self.current_tool == "rectangle":
+            if not self.manipulating:
+                self.drawing = True
+                self.last_point = pos
+                # Find the pixmap item
+                for item in self.scene.items():
+                    if isinstance(item, QGraphicsPixmapItem):
+                        self.temp_image = item.pixmap().copy()
+                        break
+                # Create rectangle
+                self.rect_item = QGraphicsRectItem()
+                self.rect_item.setPen(QPen(self.current_color, self.line_width))
+                self.scene.addItem(self.rect_item)
+            
+        elif self.current_tool == "circle":
+            self.drawing = True
+            self.last_point = pos
+            # Find the pixmap item
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.temp_image = item.pixmap().copy()
+                    break
+            # Create circle
+            self.circle_item = QGraphicsEllipseItem()
+            self.circle_item.setPen(QPen(self.current_color, self.line_width))
+            self.scene.addItem(self.circle_item)
+
+    def mouse_move(self, event):
+        if not self.current_image:
+            return
+            
+        pos = self.view.mapToScene(event.pos())
+        
+        if self.cropping and self.current_tool == "crop":
+            if self.crop_rect:
+                rect = QRectF(self.crop_start, pos).normalized()
+                self.crop_rect.setRect(rect)
+                
+                # Create two separate overlay rectangles to avoid the selected area
+                if hasattr(self, 'path_item') and self.path_item in self.scene.items():
+                    self.scene.removeItem(self.path_item)
+                
+                # Create a path that covers everything except the selection
+                path = QPainterPath()
+                full_rect = self.overlay_item.rect()
+                
+                # Add four rectangles around the selection area
+                path.addRect(QRectF(full_rect.left(), full_rect.top(), 
+                                  full_rect.width(), rect.top() - full_rect.top()))  # Top
+                path.addRect(QRectF(full_rect.left(), rect.bottom(), 
+                                  full_rect.width(), full_rect.bottom() - rect.bottom()))  # Bottom
+                path.addRect(QRectF(full_rect.left(), rect.top(), 
+                                  rect.left() - full_rect.left(), rect.height()))  # Left
+                path.addRect(QRectF(rect.right(), rect.top(), 
+                                  full_rect.right() - rect.right(), rect.height()))  # Right
+                
+                self.path_item = QGraphicsPathItem(path)
+                self.path_item.setBrush(QColor(0, 0, 0, 127))
+                self.path_item.setPen(QPen(Qt.NoPen))
+                self.scene.addItem(self.path_item)
+                
+                # Keep the crop rectangle visible and on top
+                self.crop_rect.setZValue(2)
+                
+        elif self.drawing and self.current_tool == "pencil":
+            if not hasattr(self, 'temp_image'):
+                return
+            
+            # Draw line on temp image
+            painter = QPainter(self.temp_image)
+            painter.setPen(QPen(self.current_color, self.line_width))
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.drawLine(self.last_point, pos)
+            painter.end()
+            
+            # Update scene
+            self.scene.clear()
+            self.scene.addPixmap(self.temp_image)
+            self.update_info_label()
+            self.last_point = pos
+            
+        elif self.drawing and self.current_tool == "arrow":
+            if self.arrow_item:
+                # Update arrow preview
+                self.arrow_item.setLine(QLineF(self.arrow_start, pos))
+                
+        elif self.drawing and self.current_tool == "rectangle":
+            if self.rect_item:
+                # Update rectangle preview
+                rect = QRectF(self.last_point, pos).normalized()
+                self.rect_item.setRect(rect)
+                # Keep rectangle on top
+                self.rect_item.setZValue(1)
+                
+        elif self.drawing and self.current_tool == "circle":
+            if self.circle_item:
+                # Update circle preview
+                rect = QRectF(self.last_point, pos).normalized()
+                self.circle_item.setRect(rect)
+                # Keep circle on top
+                self.circle_item.setZValue(1)
+
+    def mouse_release(self, event):
+        if not self.drawing and not self.cropping:
+            return
+            
+        pos = self.view.mapToScene(event.pos())
+        
+        if self.current_tool == "crop" and self.cropping:
+            if self.crop_rect:
+                try:
+                    # Get crop rectangle
+                    rect = self.crop_rect.rect().normalized()
+                    
+                    # Find the pixmap item
+                    for item in self.scene.items():
+                        if isinstance(item, QGraphicsPixmapItem):
+                            # Save state before cropping
+                            self.save_state()
+                            
+                            # Get the cropped portion of the image
+                            pixmap = item.pixmap()
+                            cropped = pixmap.copy(rect.toRect())
+                            
+                            # Clean up crop tool items before updating scene
+                            if self.overlay_item and self.overlay_item.scene():
+                                self.scene.removeItem(self.overlay_item)
+                            if self.crop_rect and self.crop_rect.scene():
+                                self.scene.removeItem(self.crop_rect)
+                            
+                            # Update scene with cropped image
+                            self.scene.clear()
+                            self.scene.addPixmap(cropped)
+                            
+                            # Update current dimensions
+                            current_item = self.image_list.currentItem()
+                            if current_item:
+                                file_path = self.get_file_path_from_item(current_item)
+                                if file_path:
+                                    self.current_dimensions[file_path] = (cropped.width(), cropped.height())
+                            
+                            # Add info label back
+                            self.update_info_label()
+                            break
+                    
+                finally:
+                    # Reset crop tool state
+                    self.overlay_item = None
+                    self.crop_rect = None
+                    self.cropping = False
+                
+        elif self.current_tool == "pencil":
+            # Just end drawing, state was saved at start
+            self.drawing = False
+            
+            # Update scene with final result
+            self.scene.clear()
+            self.scene.addPixmap(self.temp_image)
+            self.update_info_label()
+            
+        elif self.current_tool == "arrow":
+            if self.arrow_item:
+                # Save state before making changes
+                self.save_state()
+                
+                # Remove preview arrow
+                self.scene.removeItem(self.arrow_item)
+                
+                # Draw final arrow on the temp image
+                painter = QPainter(self.temp_image)
+                painter.setPen(QPen(self.current_color, self.line_width))
+                painter.setRenderHint(QPainter.Antialiasing)
+                
+                # Draw main line
+                painter.drawLine(self.arrow_start, pos)
+                
+                # Calculate and draw arrow head
+                line = QLineF(pos, self.arrow_start)
+                angle = math.atan2(-line.dy(), line.dx())
+                arrow_size = 20.0
+                
+                arrow_p1 = QPointF(pos.x() + arrow_size * math.cos(angle - math.pi/6),
+                                 pos.y() - arrow_size * math.sin(angle - math.pi/6))
+                arrow_p2 = QPointF(pos.x() + arrow_size * math.cos(angle + math.pi/6),
+                                 pos.y() - arrow_size * math.sin(angle + math.pi/6))
+                
+                painter.drawLine(pos, arrow_p1)
+                painter.drawLine(pos, arrow_p2)
+                painter.end()
+                
+                # Update scene with final result
+                self.scene.clear()
+                self.scene.addPixmap(self.temp_image)
+                self.update_info_label()
+                self.drawing = False
+                
+        elif self.current_tool == "rectangle":
+            if self.rect_item:
+                rect = QRectF(self.last_point, pos).normalized()
+                self.rect_item.setRect(rect)
+                self.finalize_rectangle()
+                self.drawing = False
+                
+        elif self.current_tool == "circle":
+            if self.circle_item:
+                rect = QRectF(self.last_point, pos).normalized()
+                self.circle_item.setRect(rect)
+                self.finalize_circle()
+                self.drawing = False
 
 def main():
     app = QApplication(sys.argv)
