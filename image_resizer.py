@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                            QHBoxLayout, QPushButton, QLabel, QFileDialog, 
                            QMessageBox, QComboBox, QSlider, QListWidget,
                            QSplitter, QColorDialog, QMenuBar, QMenu)
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, QRect, QByteArray, QBuffer
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QColor
 from PIL import Image
 import numpy as np
@@ -64,6 +64,26 @@ class ImageResizerApp(QMainWindow):
         self.redo_stack = []  # Store states that were undone
         self.max_history = 20  # Maximum number of states to store
 
+        # Add dictionary to store edited images and their histories
+        self.edited_images = {}  # Store edited versions of images
+        self.image_histories = {}  # Store undo history for each image
+        self.image_redo_stacks = {}  # Store redo stack for each image
+
+        # Add crop mode variables
+        self.cropping = False
+        self.crop_start = None
+        self.crop_rect = None
+        
+        # Add dictionary to store original dimensions
+        self.original_dimensions = {}  # Store original image dimensions
+        
+        # Add dictionary to store current dimensions
+        self.current_dimensions = {}  # Store current dimensions for each image
+        
+        # Add dictionary to store file sizes
+        self.file_sizes = {}  # Store original file sizes
+        self.edited_file_sizes = {}  # Store sizes of edited images
+        
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -214,6 +234,12 @@ class ImageResizerApp(QMainWindow):
         tools_group.addSpacing(180)
 
         # Create buttons with icons only
+        self.crop_btn = QPushButton("▣")
+        self.crop_btn.setFlat(True)
+        self.crop_btn.setCheckable(True)
+        self.crop_btn.setStyleSheet(tool_button_style)
+        tools_group.addWidget(self.crop_btn)
+
         self.pencil_btn = QPushButton("✎")
         self.pencil_btn.setFlat(True)
         self.pencil_btn.setCheckable(True)
@@ -355,6 +381,27 @@ class ImageResizerApp(QMainWindow):
         self.image_list = QListWidget()
         self.image_list.setMinimumWidth(280)
         self.image_list.setMaximumWidth(280)
+        self.image_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #dadde1;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                border-radius: 4px;  /* Add corner radius to items */
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #1877F2;
+                color: white;
+                border-radius: 4px;  /* Keep corner radius when selected */
+            }
+            QListWidget::item:hover {
+                background-color: #f0f2f5;
+                border-radius: 4px;  /* Keep corner radius on hover */
+            }
+        """)
         self.image_list.currentItemChanged.connect(self.image_selected)
         splitter.addWidget(self.image_list)
         
@@ -403,6 +450,9 @@ class ImageResizerApp(QMainWindow):
         self.undo_btn.setEnabled(False)
         self.redo_btn.setEnabled(False)
 
+        # Connect crop button
+        self.crop_btn.clicked.connect(lambda: self.set_tool("crop"))
+
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
@@ -430,10 +480,40 @@ class ImageResizerApp(QMainWindow):
 
     def image_selected(self, current, previous):
         if current:
+            # Save current canvas state and history if there is one
+            if previous and self.canvas.pixmap():
+                prev_path = self.get_file_path_from_item(previous)
+                if prev_path:
+                    self.edited_images[prev_path] = self.canvas.pixmap().copy()
+                    # Save the history and file size for the previous image
+                    self.image_histories[prev_path] = self.history.copy()
+                    self.image_redo_stacks[prev_path] = self.redo_stack.copy()
+                    if prev_path in self.edited_file_sizes:
+                        self.edited_file_sizes[prev_path] = self.calculate_file_size(self.canvas.pixmap())
+            
             file_path = self.get_file_path_from_item(current)
             if file_path in self.images:
                 self.current_image = self.images[file_path]
-                self.update_preview_and_info(file_path)
+                
+                # Initialize dimensions and file size if not already set
+                if file_path not in self.original_dimensions:
+                    self.original_dimensions[file_path] = self.current_image.size
+                    self.current_dimensions[file_path] = self.current_image.size
+                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
+                
+                # Restore history for the current image
+                self.history = self.image_histories.get(file_path, [])
+                self.redo_stack = self.image_redo_stacks.get(file_path, [])
+                
+                # Check if we have an edited version
+                if file_path in self.edited_images:
+                    self.update_preview_with_edited(file_path)
+                else:
+                    self.update_preview_and_info(file_path)
+                
+                # Update undo/redo button states
+                self.undo_btn.setEnabled(len(self.history) > 0)
+                self.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def get_file_path_from_item(self, item):
         for path in self.images.keys():
@@ -441,42 +521,84 @@ class ImageResizerApp(QMainWindow):
                 return path
         return None
 
+    def calculate_file_size(self, pixmap, quality=80):
+        """Calculate more accurate file size based on actual image data"""
+        # Create a temporary QByteArray to store the image
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QBuffer.WriteOnly)
+        
+        # Save the image to the buffer with PNG format to maintain quality
+        pixmap.save(buffer, "PNG")
+        
+        # Get the size in MB
+        size_in_mb = byte_array.size() / (1024 * 1024)
+        
+        # Close the buffer
+        buffer.close()
+        
+        return size_in_mb
+
     def update_preview_and_info(self, file_path):
         if self.current_image:
-            # Create preview
-            preview = self.current_image.copy()
-            preview.thumbnail((800, 800))  # Resize for preview
+            # Store original dimensions when first loading the image
+            if file_path not in self.original_dimensions:
+                self.original_dimensions[file_path] = self.current_image.size
+                self.current_dimensions[file_path] = self.current_image.size
             
-            # Convert PIL image to QPixmap
+            # Create preview (without affecting original dimensions)
+            preview = self.current_image.copy()
+            preview.thumbnail((800, 800))  # Resize for preview only
+            
+            # Convert PIL image to QPixmap for display only
             preview_array = np.array(preview)
             height, width, channels = preview_array.shape
             bytes_per_line = channels * width
-            
-            # Convert RGB to BGR for Qt
             preview_array = preview_array[:, :, ::-1].copy()
-            
             qimage = QImage(preview_array.data, width, height, 
                           bytes_per_line, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimage)
             
-            # Set the pixmap to the canvas
+            # Set the preview pixmap
             self.canvas.setPixmap(pixmap)
             
-            # Update info
-            width, height = self.current_image.size
-            file_size = os.path.getsize(file_path) / (1024 * 1024)  # Convert to MB
+            # Use stored dimensions and original file size
+            orig_width, orig_height = self.original_dimensions[file_path]
+            current_width, current_height = self.current_dimensions[file_path]
+            
+            # Use edited file size if exists, otherwise use original
+            file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
             
             info = f"""File: {os.path.basename(file_path)}
-Original size: {width} × {height} pixels
-New size: {width} × {height} pixels
+Original size: {orig_width} × {orig_height} pixels
+Current size: {current_width} × {current_height} pixels
 File size: {file_size:.2f} MB"""
             
             self.info_label.setText(info)
-            self.aspect_ratio = width / height
+            self.aspect_ratio = current_width / current_height
+
+    def update_preview_with_edited(self, file_path):
+        if self.edited_images.get(file_path):
+            edited_pixmap = self.edited_images[file_path]
+            self.canvas.setPixmap(edited_pixmap)
             
-            # Clear history when loading new image
-            self.history.clear()
-            self.redo_stack.clear()
+            # Use stored dimensions
+            orig_width, orig_height = self.original_dimensions[file_path]
+            current_width, current_height = self.current_dimensions[file_path]
+            
+            # Use edited file size if exists, otherwise use original
+            if file_path in self.edited_file_sizes:
+                file_size = self.edited_file_sizes[file_path]
+            else:
+                file_size = self.file_sizes[file_path]
+            
+            info = f"""File: {os.path.basename(file_path)}
+Original size: {orig_width} × {orig_height} pixels
+Current size: {current_width} × {current_height} pixels
+File size: {file_size:.2f} MB"""
+            
+            self.info_label.setText(info)
+            self.aspect_ratio = current_width / current_height
 
     def preset_selected(self, selection):
         if self.current_image and selection != "Custom":
@@ -656,6 +778,7 @@ File size: {file_size:.2f} MB"""
         self.current_tool = tool
         # Map tools to their buttons
         tool_buttons = {
+            "crop": self.crop_btn,
             "pencil": self.pencil_btn,
             "rectangle": self.rect_btn,
             "circle": self.circle_btn,
@@ -689,17 +812,62 @@ File size: {file_size:.2f} MB"""
         return QPoint(event_pos.x() - x_offset, event_pos.y() - y_offset)
 
     def mouse_press(self, event):
-        if self.current_image and self.canvas.pixmap():
+        if not self.current_image or not self.canvas.pixmap():
+            return
+            
+        if self.current_tool == "crop":
+            self.cropping = True
+            self.crop_start = self.get_image_coordinates(event.pos())
+            # Save state before starting crop
+            self.save_state()
+            self.temp_image = self.canvas.pixmap().copy()
+        else:
+            # Existing drawing code
             self.drawing = True
             self.last_point = self.get_image_coordinates(event.pos())
-            # Save state before starting new action
             self.save_state()
             self.temp_image = self.canvas.pixmap().copy()
 
     def mouse_move(self, event):
-        if self.drawing and self.current_image and self.canvas.pixmap():
-            current_pos = self.get_image_coordinates(event.pos())
+        if not self.current_image or not self.canvas.pixmap():
+            return
             
+        current_pos = self.get_image_coordinates(event.pos())
+        
+        if self.current_tool == "crop" and self.cropping:
+            # Draw crop rectangle
+            pixmap = self.temp_image.copy()
+            painter = QPainter(pixmap)
+            
+            # Calculate crop rectangle
+            x = min(self.crop_start.x(), current_pos.x())
+            y = min(self.crop_start.y(), current_pos.y())
+            width = abs(current_pos.x() - self.crop_start.x())
+            height = abs(current_pos.y() - self.crop_start.y())
+            
+            # Create a semi-transparent overlay
+            overlay = QPixmap(pixmap.size())
+            overlay.fill(Qt.transparent)
+            overlay_painter = QPainter(overlay)
+            overlay_painter.fillRect(0, 0, pixmap.width(), pixmap.height(), QColor(0, 0, 0, 100))
+            overlay_painter.setCompositionMode(QPainter.CompositionMode_Clear)
+            overlay_painter.fillRect(x, y, width, height, Qt.transparent)
+            overlay_painter.end()
+            
+            # Draw the overlay on the main pixmap
+            painter.drawPixmap(0, 0, overlay)
+            
+            # Draw crop rectangle border
+            painter.setPen(QPen(Qt.white, 2, Qt.DashLine))
+            painter.drawRect(x, y, width, height)
+            
+            painter.end()
+            self.canvas.setPixmap(pixmap)
+            
+            # Store current crop rectangle
+            self.crop_rect = QRect(x, y, width, height)
+        elif self.drawing:
+            # Existing drawing code
             if self.current_tool == "pencil":
                 # For pencil, draw directly
                 pixmap = self.canvas.pixmap()
@@ -732,7 +900,35 @@ File size: {file_size:.2f} MB"""
                 self.canvas.setPixmap(pixmap)
 
     def mouse_release(self, event):
-        if self.drawing and self.current_image and self.canvas.pixmap():
+        if self.current_tool == "crop" and self.cropping:
+            if self.crop_rect and self.crop_rect.isValid():
+                # Apply the crop
+                cropped_pixmap = self.temp_image.copy(self.crop_rect)
+                self.canvas.setPixmap(cropped_pixmap)
+                
+                # Update dimensions and file size for current image only
+                current_item = self.image_list.currentItem()
+                if current_item:
+                    file_path = self.get_file_path_from_item(current_item)
+                    if file_path:
+                        self.current_dimensions[file_path] = (cropped_pixmap.width(), cropped_pixmap.height())
+                        # Calculate and store new file size for edited image
+                        self.edited_file_sizes[file_path] = self.calculate_file_size(cropped_pixmap)
+                        self.update_image_info(cropped_pixmap, file_path)
+                
+                # Reset crop mode
+                self.cropping = False
+                self.crop_start = None
+                self.crop_rect = None
+                
+                # Update button states
+                self.undo_btn.setEnabled(len(self.history) > 0)
+                self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+                
+                # Switch back to pencil tool
+                self.set_tool("pencil")
+        elif self.drawing:
+            # Existing drawing release code
             current_pos = self.get_image_coordinates(event.pos())
             
             if self.current_tool != "pencil":
@@ -782,34 +978,107 @@ File size: {file_size:.2f} MB"""
     def save_state(self):
         """Save current state to history"""
         if self.canvas.pixmap():
-            self.redo_stack.clear()  # Clear redo stack when new action is performed
-            self.history.append(self.canvas.pixmap().copy())
-            if len(self.history) > self.max_history:
-                self.history.pop(0)
+            current_item = self.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    state = {
+                        'pixmap': self.canvas.pixmap().copy(),
+                        'current_dimensions': self.current_dimensions[file_path],
+                        'original_dimensions': self.original_dimensions[file_path]
+                    }
+                    self.history.append(state)
+                    if len(self.history) > self.max_history:
+                        self.history.pop(0)
+                    self.redo_stack.clear()
+
+    def update_image_info(self, pixmap, file_path):
+        """Update image information based on current pixmap"""
+        width = pixmap.width()
+        height = pixmap.height()
+        
+        # Use stored original dimensions and current file size
+        orig_width, orig_height = self.original_dimensions.get(file_path, (width, height))
+        file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+        
+        info = f"""File: {os.path.basename(file_path)}
+Original size: {orig_width} × {orig_height} pixels
+Current size: {width} × {height} pixels
+File size: {file_size:.2f} MB"""
+        
+        self.info_label.setText(info)
+        self.aspect_ratio = width / height
 
     def undo(self):
         if len(self.history) > 0:
-            # Save current state to redo stack
-            if self.canvas.pixmap():
-                self.redo_stack.append(self.canvas.pixmap().copy())
-            # Restore previous state
-            previous_state = self.history.pop()
-            self.canvas.setPixmap(previous_state)
-            # Update button states
-            self.undo_btn.setEnabled(len(self.history) > 0)
-            self.redo_btn.setEnabled(True)
+            current_item = self.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    # Save current state to redo stack
+                    if self.canvas.pixmap():
+                        current_state = {
+                            'pixmap': self.canvas.pixmap().copy(),
+                            'current_dimensions': self.current_dimensions[file_path],
+                            'original_dimensions': self.original_dimensions[file_path]
+                        }
+                        self.redo_stack.append(current_state)
+                    
+                    # Restore previous state
+                    previous_state = self.history.pop()
+                    self.canvas.setPixmap(previous_state['pixmap'])
+                    
+                    # Update dimensions
+                    self.current_dimensions[file_path] = previous_state['current_dimensions']
+                    orig_width, orig_height = previous_state['original_dimensions']
+                    current_width, current_height = previous_state['current_dimensions']
+                    
+                    # Reset to original file size if undoing to original state
+                    if len(self.history) == 0:
+                        if file_path in self.edited_file_sizes:
+                            del self.edited_file_sizes[file_path]
+                    
+                    # Use edited file size if exists, otherwise use original
+                    file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                    
+                    info = f"""File: {os.path.basename(file_path)}
+Original size: {orig_width} × {orig_height} pixels
+Current size: {current_width} × {current_height} pixels
+File size: {file_size:.2f} MB"""
+                    
+                    self.info_label.setText(info)
+                    self.aspect_ratio = current_width / current_height
+                    
+                    # Update button states
+                    self.undo_btn.setEnabled(len(self.history) > 0)
+                    self.redo_btn.setEnabled(True)
 
     def redo(self):
         if len(self.redo_stack) > 0:
-            # Save current state to history
-            if self.canvas.pixmap():
-                self.history.append(self.canvas.pixmap().copy())
-            # Restore redo state
-            next_state = self.redo_stack.pop()
-            self.canvas.setPixmap(next_state)
-            # Update button states
-            self.undo_btn.setEnabled(True)
-            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
+            current_item = self.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    # Save current state to history
+                    if self.canvas.pixmap():
+                        current_state = {
+                            'pixmap': self.canvas.pixmap().copy(),
+                            'original_dimensions': self.original_dimensions.get(file_path)
+                        }
+                        self.history.append(current_state)
+                    
+                    # Restore redo state
+                    next_state = self.redo_stack.pop()
+                    self.canvas.setPixmap(next_state['pixmap'])
+                    if next_state['original_dimensions']:
+                        self.original_dimensions[file_path] = next_state['original_dimensions']
+                    
+                    # Update image information
+                    self.update_image_info(next_state['pixmap'], file_path)
+                    
+                    # Update button states
+                    self.undo_btn.setEnabled(True)
+                    self.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def save(self):
         """Save the current image with drawings"""
