@@ -37,6 +37,33 @@ class CustomGraphicsView(QGraphicsView):
             self.parent.mouse_release(event)
         super().mouseReleaseEvent(event)
 
+class BoundingBoxItem(QGraphicsRectItem):
+    def __init__(self, shape, parent=None):
+        super().__init__(parent)
+        self.shape = shape
+        
+        # Set appearance
+        self.setPen(QPen(Qt.white, 1, Qt.DashLine))
+        self.setBrush(QBrush(Qt.NoBrush))
+        self.setZValue(2)
+        
+        self.update_geometry()
+
+    def update_geometry(self):
+        # Get shape geometry including its position
+        if isinstance(self.shape, QGraphicsLineItem):
+            rect = self.shape.boundingRect()
+        else:
+            rect = self.shape.rect()
+        
+        # Translate rect to shape's position
+        rect.translate(self.shape.pos())
+        
+        # Add margin
+        margin = 5
+        rect.adjust(-margin, -margin, margin, margin)
+        self.setRect(rect)
+
 class ImageResizerApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1298,7 +1325,7 @@ File size: {file_size:.2f} MB"""
             self.dragging = True
             self.drag_start = pos
             return
-            
+
         # If clicking outside any shape, finalize the current shape
         if self.selected_shape:
             self.finalize_shape()
@@ -1395,6 +1422,7 @@ File size: {file_size:.2f} MB"""
                 self.last_point = pos
             return
 
+        # Handle shape resizing
         if self.resizing and self.selected_shape and self.resize_handle:
             # Handle resizing based on shape type
             if isinstance(self.selected_shape, QGraphicsLineItem):
@@ -1402,28 +1430,34 @@ File size: {file_size:.2f} MB"""
                 line = self.selected_shape.line()
                 handle_index = self.resize_handles.index(self.resize_handle)
                 if handle_index == 0:  # Start point
-                    self.selected_shape.setLine(QLineF(pos, line.p2()))
+                    self.selected_shape.setLine(QLineF(pos - self.selected_shape.pos(), line.p2()))
                 else:  # End point
-                    self.selected_shape.setLine(QLineF(line.p1(), pos))
+                    self.selected_shape.setLine(QLineF(line.p1(), pos - self.selected_shape.pos()))
             else:
                 # For rectangle and circle
                 new_rect = self.calculate_new_rect(pos)
                 self.selected_shape.setRect(new_rect)
             
-            # Update handle positions
+            # Update bounding box and handles
+            if hasattr(self, 'bounding_box'):
+                self.bounding_box.update_geometry()
             self.update_resize_handles()
-            
-        elif self.dragging and self.selected_shape:
-            # Move the shape
+            return
+
+        # Handle shape dragging
+        if self.dragging and self.selected_shape:
             delta = pos - self.drag_start
             self.selected_shape.moveBy(delta.x(), delta.y())
             self.drag_start = pos
             
-            # Update handle positions
+            # Update bounding box and handles
+            if hasattr(self, 'bounding_box'):
+                self.bounding_box.update_geometry()
             self.update_resize_handles()
-            
-        elif self.drawing:
-            # Handle drawing new shapes
+            return
+
+        # Handle drawing new shapes
+        if self.drawing:
             if self.current_tool in ["rectangle", "circle"]:
                 rect = QRectF(self.last_point, pos).normalized()
                 if self.current_tool == "rectangle":
@@ -1496,10 +1530,14 @@ File size: {file_size:.2f} MB"""
                 self.update_info_label()
             return
 
-        if self.resizing or self.dragging:
+        if self.resizing:
             self.resizing = False
-            self.dragging = False
             self.resize_handle = None
+            return
+
+        if self.dragging:
+            self.dragging = False
+            self.drag_start = None
             return
             
         if self.drawing:
@@ -1523,20 +1561,32 @@ File size: {file_size:.2f} MB"""
                 self.current_tool = None
 
     def select_shape(self, shape):
-        """Select a shape and create its resize handles"""
+        """Select a shape and create its bounding box and handles"""
         # Clear previous selection
         if self.selected_shape and self.selected_shape != shape:
-            # Remove old handles first
+            if hasattr(self, 'bounding_box') and self.bounding_box:
+                self.scene.removeItem(self.bounding_box)
             for handle in self.resize_handles:
-                if handle.scene():  # Check if handle is still in scene
+                if handle.scene():
                     self.scene.removeItem(handle)
             self.resize_handles.clear()
             self.finalize_shape()
-            
-        self.selected_shape = shape
         
-        # Create new handles
+        self.selected_shape = shape
+        shape.app = self  # Add reference to app
+        
+        # Create bounding box for movement
+        self.bounding_box = BoundingBoxItem(shape)
+        self.scene.addItem(self.bounding_box)
+        
+        # Create resize handles
         self.resize_handles = self.create_resize_handles(shape)
+        
+        # Set proper z-ordering
+        self.selected_shape.setZValue(1)
+        self.bounding_box.setZValue(2)
+        for handle in self.resize_handles:
+            handle.setZValue(3)
 
     def finalize_shape(self):
         """Finalize the current shape by drawing it permanently on the pixmap"""
@@ -1605,11 +1655,12 @@ File size: {file_size:.2f} MB"""
             # Deactivate current tool (except pencil)
             if self.current_tool != "pencil":
                 self.current_tool = None
-                # Uncheck all tool buttons except pencil
-                self.rect_btn.setChecked(False)
-                self.circle_btn.setChecked(False)
-                self.arrow_btn.setChecked(False)
-                self.crop_btn.setChecked(False)
+            
+            # Uncheck all tool buttons except pencil
+            self.rect_btn.setChecked(False)
+            self.circle_btn.setChecked(False)
+            self.arrow_btn.setChecked(False)
+            self.crop_btn.setChecked(False)
             
             # Update info label
             self.update_info_label()
@@ -1617,71 +1668,39 @@ File size: {file_size:.2f} MB"""
     def calculate_new_rect(self, pos):
         """Calculate new rectangle based on resize handle being dragged"""
         if not self.resize_handle or not self.selected_shape:
-            return self.original_rect  # Return original rect instead of None
+            return self.original_rect
 
-        # Find the handle index by comparing positions
-        handle_rect = self.resize_handle.rect()
-        handle_pos = QPointF(handle_rect.center())
+        # Convert scene position to shape's local coordinates
+        pos = pos - self.selected_shape.pos()
         
-        # Get all handle positions for comparison
-        if isinstance(self.selected_shape, QGraphicsLineItem):
-            line = self.selected_shape.line()
-            line_pos = self.selected_shape.pos()
-            positions = [
-                line.p1() + line_pos,
-                line.p2() + line_pos
-            ]
-        else:
-            rect = self.selected_shape.rect()
-            rect.translate(self.selected_shape.pos())
-            positions = [
-                rect.topLeft(),
-                rect.topRight(),
-                rect.bottomLeft(),
-                rect.bottomRight(),
-                QPointF(rect.center().x(), rect.top()),
-                QPointF(rect.center().x(), rect.bottom()),
-                QPointF(rect.left(), rect.center().y()),
-                QPointF(rect.right(), rect.center().y())
-            ]
-
-        # Find which handle is being dragged
-        handle_index = -1
-        for i, p in enumerate(positions):
-            if (abs(p.x() - handle_pos.x()) < self.handle_size and 
-                abs(p.y() - handle_pos.y()) < self.handle_size):  # Increased tolerance
-                handle_index = i
-                break
-
-        if handle_index == -1:
-            return self.original_rect  # Return original rect instead of None
-
-        original_rect = self.original_rect
+        # Get handle index
+        handle_index = self.resize_handles.index(self.resize_handle)
         
+        # Calculate new rect keeping opposite point fixed
         if handle_index < 4:  # Corner handles
             if handle_index == 0:  # Top-left
-                return QRectF(pos, original_rect.bottomRight())
+                return QRectF(pos, self.original_rect.bottomRight())
             elif handle_index == 1:  # Top-right
-                return QRectF(QPointF(original_rect.left(), pos.y()),
-                            QPointF(pos.x(), original_rect.bottom()))
+                return QRectF(QPointF(self.original_rect.left(), pos.y()),
+                             QPointF(pos.x(), self.original_rect.bottom()))
             elif handle_index == 2:  # Bottom-left
-                return QRectF(QPointF(pos.x(), original_rect.top()),
-                            QPointF(original_rect.right(), pos.y()))
+                return QRectF(QPointF(pos.x(), self.original_rect.top()),
+                             QPointF(self.original_rect.right(), pos.y()))
             else:  # Bottom-right
-                return QRectF(original_rect.topLeft(), pos)
+                return QRectF(self.original_rect.topLeft(), pos)
         else:  # Edge handles
             if handle_index == 4:  # Top
-                return QRectF(QPointF(original_rect.left(), pos.y()),
-                            original_rect.bottomRight())
+                return QRectF(QPointF(self.original_rect.left(), pos.y()),
+                             self.original_rect.bottomRight())
             elif handle_index == 5:  # Bottom
-                return QRectF(original_rect.topLeft(),
-                            QPointF(original_rect.right(), pos.y()))
+                return QRectF(self.original_rect.topLeft(),
+                             QPointF(self.original_rect.right(), pos.y()))
             elif handle_index == 6:  # Left
-                return QRectF(QPointF(pos.x(), original_rect.top()),
-                            original_rect.bottomRight())
+                return QRectF(QPointF(pos.x(), self.original_rect.top()),
+                             self.original_rect.bottomRight())
             else:  # Right
-                return QRectF(original_rect.topLeft(),
-                            QPointF(pos.x(), original_rect.bottom()))
+                return QRectF(self.original_rect.topLeft(),
+                             QPointF(pos.x(), self.original_rect.bottom()))
 
     def update_resize_handles(self):
         """Update position of resize handles when shape is moved or resized"""
