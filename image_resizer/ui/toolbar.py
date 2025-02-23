@@ -14,6 +14,15 @@ class Toolbar(QWidget):
         self.setFixedHeight(40)
         self.setup_tools()
         self.setup_controls()
+        self.connect_signals()
+        
+    def connect_signals(self):
+        """Connect all toolbar signals"""
+        self.quality_slider.valueChanged.connect(self.quality_changed)
+        
+    def quality_changed(self, value):
+        """Update quality label when slider value changes"""
+        self.quality_label.setText(f"{value}%")
         
     def setup_tools(self):
         # Drawing tools group

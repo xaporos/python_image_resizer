@@ -5,6 +5,7 @@ from image_resizer.ui.styles import MAIN_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
+from image_resizer.components.tools.tool_manager import ToolManager
 
 class ImageResizerApp(QMainWindow):
     def __init__(self):
@@ -29,6 +30,9 @@ class ImageResizerApp(QMainWindow):
         # Add image handler
         self.image_handler = ImageHandler(self)
         
+        # Add tool manager
+        self.tool_manager = ToolManager(self)
+        
         # Initialize UI components
         self.setup_ui()
         self.connect_signals()
@@ -46,7 +50,14 @@ class ImageResizerApp(QMainWindow):
         
         # Connect image list selection
         self.image_list.currentItemChanged.connect(self.image_handler.image_selected)
-
+        
+        # Connect tool buttons
+        self.toolbar.crop_btn.clicked.connect(lambda: self.set_tool('crop'))
+        
+        # Connect undo/redo buttons
+        self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
+        self.toolbar.redo_btn.clicked.connect(self.image_handler.redo)
+        
     def setup_menu(self):
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
@@ -122,11 +133,29 @@ class ImageResizerApp(QMainWindow):
     def resize_all_images(self):
         pass  # We'll implement this later
         
+    def set_tool(self, tool_name):
+        """Set the current drawing tool"""
+        self.tool_manager.set_tool(tool_name)
+        
+        # Update button states
+        tool_buttons = {
+            'crop': self.toolbar.crop_btn,
+            # We'll add other tools here later
+        }
+        
+        # Uncheck all buttons
+        for btn in tool_buttons.values():
+            btn.setChecked(False)
+        
+        # Check the selected tool's button
+        if tool_name in tool_buttons:
+            tool_buttons[tool_name].setChecked(True)
+
     def mouse_press(self, event):
-        pass  # We'll implement this later
+        self.tool_manager.handle_mouse_press(event)
         
     def mouse_move(self, event):
-        pass  # We'll implement this later
+        self.tool_manager.handle_mouse_move(event)
         
     def mouse_release(self, event):
-        pass  # We'll implement this later 
+        self.tool_manager.handle_mouse_release(event) 

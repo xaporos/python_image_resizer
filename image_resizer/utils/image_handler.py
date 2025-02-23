@@ -304,3 +304,83 @@ class ImageHandler:
             self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
             
             self.aspect_ratio = current_width / current_height 
+
+    def save_state(self):
+        """Save current state to history"""
+        # Find the pixmap item
+        for item in self.parent.scene.items():
+            if isinstance(item, QGraphicsPixmapItem):
+                # Save current state
+                self.history.append(item.pixmap().copy())
+                if len(self.history) > self.max_history:
+                    self.history.pop(0)
+                
+                # Clear redo stack when new action is performed
+                self.redo_stack.clear()
+                
+                # Update button states
+                self.parent.toolbar.undo_btn.setEnabled(True)
+                self.parent.toolbar.redo_btn.setEnabled(False)
+                break
+
+    def update_info_label(self):
+        """Update the info labels with current image information"""
+        current_item = self.parent.image_list.currentItem()
+        if current_item:
+            file_path = self.get_file_path_from_item(current_item)
+            if file_path:
+                current_width, current_height = self.current_dimensions[file_path]
+                file_size = self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                
+                self.parent.size_label.setText(f"Size: {current_width} × {current_height}px")
+                self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB") 
+
+    def undo(self):
+        """Undo the last action"""
+        if len(self.history) > 0:
+            # Get the previous state
+            previous_pixmap = self.history.pop()
+            
+            # Add current state to redo stack before clearing
+            for item in self.parent.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.redo_stack.append(item.pixmap().copy())
+                    break
+            
+            # Clear all existing items
+            self.parent.scene.clear()
+            
+            # Restore previous state
+            self.parent.scene.addPixmap(previous_pixmap)
+            
+            # Update info label
+            self.update_info_label()
+            
+            # Update button states
+            self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
+            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0)
+
+    def redo(self):
+        """Redo the last undone action"""
+        if len(self.redo_stack) > 0:
+            # Get the next state
+            next_pixmap = self.redo_stack.pop()
+            
+            # Add current state to history before clearing
+            for item in self.parent.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.history.append(item.pixmap().copy())
+                    break
+            
+            # Clear all existing items
+            self.parent.scene.clear()
+            
+            # Restore next state
+            self.parent.scene.addPixmap(next_pixmap)
+            
+            # Update info label
+            self.update_info_label()
+            
+            # Update button states
+            self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
+            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0) 
