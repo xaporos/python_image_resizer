@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QGraphicsPixmapItem
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QRectF
 import numpy as np
+from image_resizer.utils.resizer import ImageResizer
 
 class ImageHandler:
     def __init__(self, parent):
@@ -21,6 +22,7 @@ class ImageHandler:
         self.image_histories = {}
         self.image_redo_stacks = {}
         self.max_history = 10
+        self.resizer = ImageResizer()
         
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -89,72 +91,39 @@ class ImageHandler:
             return
             
         try:
-            # Get dimensions
-            current_width, current_height = self.current_image.size
-            
-            # Get target size from combo box
-            size_text = self.parent.toolbar.size_combo.currentText()
-            if size_text == "Small":
-                target_width = 800
-            elif size_text == "Medium":
-                target_width = 1200
-            elif size_text == "Large":
-                target_width = 1600
-            else:
-                target_width = current_width
-            
-            # Calculate new dimensions
-            if current_width > target_width:
-                width = target_width
-                height = int(target_width / current_width * current_height)
-            else:
-                width, height = current_width, current_height
-            
-            # Create a copy of the image for resizing
-            resized_image = self.current_image.copy()
-            
-            # Only resize if dimensions changed
-            if (width, height) != (current_width, current_height):
-                resized_image = resized_image.resize((width, height), Image.Resampling.LANCZOS)
-            
-            # Get save path
             current_item = self.parent.image_list.currentItem()
             if not current_item:
                 return
                 
             file_path = self.get_file_path_from_item(current_item)
-            original_ext = os.path.splitext(file_path)[1].lower()
+            size_preset = self.parent.toolbar.size_combo.currentText()
+            quality = self.parent.toolbar.quality_slider.value()
             
-            save_path, _ = QFileDialog.getSaveFileName(
-                self.parent,
-                "Save Resized Image",
-                f"resized_{os.path.basename(file_path)}",
-                f"Image Files (*{original_ext})"
-            )
+            # Resize image
+            resized_image = self.resizer.resize_single(self.current_image, size_preset)
+            if not resized_image:
+                return
             
-            if save_path:
-                # Save with appropriate quality
-                quality = self.parent.toolbar.quality_slider.value()
-                if save_path.lower().endswith(('.jpg', '.jpeg')):
-                    resized_image.save(save_path, quality=quality, optimize=True)
-                elif save_path.lower().endswith('.png'):
-                    resized_image.save(save_path, optimize=True, compress_level=9)
-                else:
-                    resized_image.save(save_path)
+            # Get save path
+            save_path = self.resizer.get_save_path(self.parent, file_path)
+            if not save_path:
+                return
+            
+            # Save image
+            original_size = os.path.getsize(file_path)
+            if self.resizer.save_image(resized_image, save_path, quality):
+                new_size = os.path.getsize(save_path)
+                orig_mb, new_mb, reduction = self.resizer.calculate_statistics(original_size, new_size)
                 
-                # Show success message with details
-                original_size = os.path.getsize(file_path) / (1024 * 1024)
-                new_size = os.path.getsize(save_path) / (1024 * 1024)
-                reduction = ((original_size - new_size) / original_size * 100)
-                
+                # Show success message
                 QMessageBox.information(
                     self.parent, "Success",
                     f"Image resized successfully!\n\n"
-                    f"Original size: {original_size:.2f} MB\n"
-                    f"New size: {new_size:.2f} MB\n"
+                    f"Original size: {orig_mb:.2f} MB\n"
+                    f"New size: {new_mb:.2f} MB\n"
                     f"Reduction: {reduction:.1f}%\n\n"
-                    f"Original dimensions: {current_width}x{current_height}\n"
-                    f"New dimensions: {width}x{height}"
+                    f"Original dimensions: {self.current_image.size[0]}x{self.current_image.size[1]}\n"
+                    f"New dimensions: {resized_image.size[0]}x{resized_image.size[1]}"
                 )
                 
         except Exception as e:
@@ -179,13 +148,12 @@ class ImageHandler:
         return size_in_mb 
 
     def resize_all_images(self):
-        """Resize all loaded images"""
         if not self.images:
             QMessageBox.warning(self.parent, "Warning", "No images loaded!")
             return
         
-        # Ask for output directory
-        output_dir = QFileDialog.getExistingDirectory(self.parent, "Select Output Directory")
+        # Get output directory
+        output_dir = self.resizer.get_output_directory(self.parent)
         if not output_dir:
             return
         
@@ -193,34 +161,15 @@ class ImageHandler:
         total_original_size = 0
         total_new_size = 0
         
-        # Get target size from combo box
-        size_text = self.parent.toolbar.size_combo.currentText()
-        if size_text == "Small":
-            target_width = 800
-        elif size_text == "Medium":
-            target_width = 1200
-        elif size_text == "Large":
-            target_width = 1600
-        
+        size_preset = self.parent.toolbar.size_combo.currentText()
         quality = self.parent.toolbar.quality_slider.value()
         
         for file_path, image in self.images.items():
             try:
-                current_width, current_height = image.size
-                
-                # Calculate new dimensions
-                if current_width > target_width:
-                    width = target_width
-                    height = int(target_width / current_width * current_height)
-                else:
-                    width, height = current_width, current_height
-                
-                # Create a copy of the image for resizing
-                resized_image = image.copy()
-                
-                # Only resize if dimensions changed
-                if (width, height) != (current_width, current_height):
-                    resized_image = resized_image.resize((width, height), Image.Resampling.LANCZOS)
+                # Resize image
+                resized_image = self.resizer.resize_single(image, size_preset)
+                if not resized_image:
+                    continue
                 
                 output_path = os.path.join(output_dir, f"resized_{os.path.basename(file_path)}")
                 
@@ -228,18 +177,11 @@ class ImageHandler:
                 original_size = os.path.getsize(file_path)
                 total_original_size += original_size
                 
-                # Save with appropriate settings
-                if output_path.lower().endswith(('.jpg', '.jpeg')):
-                    resized_image.save(output_path, quality=quality, optimize=True)
-                elif output_path.lower().endswith('.png'):
-                    resized_image.save(output_path, optimize=True, compress_level=9)
-                else:
-                    resized_image.save(output_path)
-                
-                # Track sizes
-                new_size = os.path.getsize(output_path)
-                total_new_size += new_size
-                success_count += 1
+                # Save resized image
+                if self.resizer.save_image(resized_image, output_path, quality):
+                    new_size = os.path.getsize(output_path)
+                    total_new_size += new_size
+                    success_count += 1
                 
             except Exception as e:
                 QMessageBox.warning(
@@ -249,18 +191,16 @@ class ImageHandler:
                 )
         
         if success_count > 0:
-            # Calculate total statistics
-            total_original_mb = total_original_size / (1024 * 1024)
-            total_new_mb = total_new_size / (1024 * 1024)
-            total_reduction = ((total_original_size - total_new_size) / total_original_size * 100)
+            # Show statistics
+            orig_mb, new_mb, reduction = self.resizer.calculate_statistics(
+                total_original_size, total_new_size)
             
-            # Create simplified message
             message = f"Successfully resized {success_count} of {len(self.images)} images\n\n"
-            message += f"Total original size: {total_original_mb:.2f} MB\n"
-            message += f"Total new size: {total_new_mb:.2f} MB\n"
-            message += f"Total reduction: {total_reduction:.1f}%"
+            message += f"Total original size: {orig_mb:.2f} MB\n"
+            message += f"Total new size: {new_mb:.2f} MB\n"
+            message += f"Total reduction: {reduction:.1f}%"
             
-            QMessageBox.information(self.parent, "Success", message) 
+            QMessageBox.information(self.parent, "Success", message)
 
     def image_selected(self, current, previous):
         """Handle image selection from the list"""
