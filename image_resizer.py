@@ -1360,13 +1360,12 @@ File size: {file_size:.2f} MB"""
         elif self.current_tool == "pencil":
             self.drawing = True
             self.last_point = pos
-            # Find and store the current pixmap
+            # Find and store the current pixmap and save state
             for item in self.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
                     self.temp_image = item.pixmap().copy()
+                    self.save_state()  # Save state when starting to draw
                     break
-            # Save state before starting to draw
-            self.save_state()
 
     def mouse_move(self, event):
         if not self.current_image:
@@ -1509,12 +1508,12 @@ File size: {file_size:.2f} MB"""
                     self.crop_btn.setChecked(False)  # Uncheck the button
             return
 
-        # Handle pencil tool - this one stays active
+        # Handle pencil tool
         if self.drawing and self.current_tool == "pencil":
             self.drawing = False
             self.last_point = None
             if self.temp_image:
-                self.save_state()
+                # Don't save state here since we already saved it at start
                 self.scene.clear()
                 self.scene.addPixmap(self.temp_image)
                 self.update_info_label()
