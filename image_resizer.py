@@ -1093,11 +1093,20 @@ File size: {file_size:.2f} MB"""
     def undo(self):
         """Undo the last action"""
         if len(self.history) > 0:
-            # Clear all existing items first
+            # Get the previous state
+            previous_pixmap = self.history.pop()
+            
+            # Add current state to redo stack before clearing
+            for item in self.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    self.redo_stack.append(item.pixmap().copy())
+                    break
+            
+            # Clear all existing items
             self.scene.clear()
             
             # Clear all references
-            self.resize_handles = []  # Just clear the list, items are already removed by scene.clear()
+            self.resize_handles = []
             self.selected_shape = None
             self.shape_items = []
             
@@ -1109,51 +1118,50 @@ File size: {file_size:.2f} MB"""
             self.resizing = False
             
             # Restore previous state
-            previous_pixmap = self.history.pop()
             self.scene.addPixmap(previous_pixmap)
-            
-            # Add to redo stack
-            if len(self.scene.items()) > 0:
-                for item in self.scene.items():
-                    if isinstance(item, QGraphicsPixmapItem):
-                        self.redo_stack.append(item.pixmap().copy())
-                        break
             
             # Update info label
             self.update_info_label()
             
             # Update button states
             self.undo_btn.setEnabled(len(self.history) > 0)
-            self.redo_btn.setEnabled(True)
+            self.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def redo(self):
         """Redo the last undone action"""
         if len(self.redo_stack) > 0:
-            # Reset all tool states
-            self.reset_tool_states()
+            # Get the next state
+            next_pixmap = self.redo_stack.pop()
             
-            # Find current pixmap
+            # Add current state to history before clearing
             for item in self.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
-                    # Save current state to history
                     self.history.append(item.pixmap().copy())
                     break
             
-            # Restore next state
-            next_pixmap = self.redo_stack.pop()
-            
-            # Clear scene and all items including handles
+            # Clear all existing items
             self.scene.clear()
-            self.resize_handles.clear()  # Clear handle references
-            self.selected_shape = None   # Clear selected shape
-            self.shape_items.clear()     # Clear shape items
             
-            # Update scene
+            # Clear all references
+            self.resize_handles = []
+            self.selected_shape = None
+            self.shape_items = []
+            
+            # Reset all states
+            self.drawing = False
+            self.cropping = False
+            self.manipulating = False
+            self.dragging = False
+            self.resizing = False
+            
+            # Restore next state
             self.scene.addPixmap(next_pixmap)
+            
+            # Update info label
             self.update_info_label()
             
             # Update button states
-            self.undo_btn.setEnabled(True)
+            self.undo_btn.setEnabled(len(self.history) > 0)
             self.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def reset_tool_states(self):
@@ -1318,15 +1326,7 @@ File size: {file_size:.2f} MB"""
                         self.original_rect = self.selected_shape.rect()
                     return
 
-        # Check if clicking on an existing shape
-        clicked_item = self.scene.itemAt(pos, self.view.transform())
-        if clicked_item and clicked_item in self.shape_items:
-            self.select_shape(clicked_item)
-            self.dragging = True
-            self.drag_start = pos
-            return
-
-        # If clicking outside any shape, finalize the current shape
+        # Check if clicking on the image (not on shapes or handles)
         if self.selected_shape:
             self.finalize_shape()
             return
@@ -1424,6 +1424,7 @@ File size: {file_size:.2f} MB"""
 
         # Handle shape resizing
         if self.resizing and self.selected_shape and self.resize_handle:
+            pos = self.view.mapToScene(event.pos())
             # Handle resizing based on shape type
             if isinstance(self.selected_shape, QGraphicsLineItem):
                 # For line/arrow, update start or end point
@@ -1436,19 +1437,8 @@ File size: {file_size:.2f} MB"""
             else:
                 # For rectangle and circle
                 new_rect = self.calculate_new_rect(pos)
-                self.selected_shape.setRect(new_rect)
-            
-            # Update bounding box and handles
-            if hasattr(self, 'bounding_box'):
-                self.bounding_box.update_geometry()
-            self.update_resize_handles()
-            return
-
-        # Handle shape dragging
-        if self.dragging and self.selected_shape:
-            delta = pos - self.drag_start
-            self.selected_shape.moveBy(delta.x(), delta.y())
-            self.drag_start = pos
+                if new_rect:
+                    self.selected_shape.setRect(new_rect)
             
             # Update bounding box and handles
             if hasattr(self, 'bounding_box'):
@@ -1535,11 +1525,6 @@ File size: {file_size:.2f} MB"""
             self.resize_handle = None
             return
 
-        if self.dragging:
-            self.dragging = False
-            self.drag_start = None
-            return
-            
         if self.drawing:
             self.drawing = False
             if self.current_tool in ["rectangle", "circle", "arrow"]:
