@@ -1,9 +1,15 @@
 from PyQt5.QtCore import QObject
 
-class BaseTool(QObject):
+class BaseTool:
     def __init__(self, app):
-        super().__init__()
         self.app = app
+        self.drawing = False
+        self.last_point = None
+
+    def activate(self):
+        pass
+
+    def deactivate(self):
         self.drawing = False
         self.last_point = None
 
@@ -14,11 +20,4 @@ class BaseTool(QObject):
         pass
 
     def mouse_release(self, event):
-        pass
-
-    def activate(self):
-        pass
-
-    def deactivate(self):
-        self.drawing = False
-        self.last_point = None 
+        pass 
