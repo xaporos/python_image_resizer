@@ -4,6 +4,7 @@ from .pencil_tool import PencilTool
 from .arrow_tool import ArrowTool
 from .circle_tool import CircleTool
 from .rectangle_tool import RectangleTool
+from .text_tool import TextTool
 
 class ToolManager:
     def __init__(self, app):
@@ -15,6 +16,7 @@ class ToolManager:
             'arrow': ArrowTool(app),
             'circle': CircleTool(app),
             'rectangle': RectangleTool(app),
+            'text': TextTool(app),
             # We'll add other tools here later
         }
 

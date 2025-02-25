@@ -57,6 +57,7 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.arrow_btn.clicked.connect(lambda: self.set_tool('arrow'))
         self.toolbar.circle_btn.clicked.connect(lambda: self.set_tool('circle'))
         self.toolbar.rect_btn.clicked.connect(lambda: self.set_tool('rectangle'))
+        self.toolbar.text_btn.clicked.connect(lambda: self.set_tool('text'))
         
         # Connect undo/redo buttons
         self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
@@ -112,9 +113,9 @@ class ImageResizerApp(QMainWindow):
         self.setup_info_bar()
     
     def setup_info_bar(self):
-        info_bar = QHBoxLayout()
-        info_bar.setSpacing(20)
-        info_bar.setContentsMargins(10, 2, 10, 2)
+        self.info_bar = QHBoxLayout()  # Make it an instance variable
+        self.info_bar.setSpacing(20)
+        self.info_bar.setContentsMargins(10, 2, 10, 2)
         
         # Create labels for image info
         self.size_label = QLabel("Size: --")
@@ -122,11 +123,11 @@ class ImageResizerApp(QMainWindow):
         self.file_size_label = QLabel("File size: --")
         self.file_size_label.setFixedHeight(20)
         
-        info_bar.addStretch()
-        info_bar.addWidget(self.size_label)
-        info_bar.addWidget(self.file_size_label)
+        self.info_bar.addStretch()
+        self.info_bar.addWidget(self.size_label)
+        self.info_bar.addWidget(self.file_size_label)
         
-        self.main_layout.addLayout(info_bar)
+        self.main_layout.addLayout(self.info_bar)
 
     def select_files(self):
         pass  # We'll implement this later
@@ -148,6 +149,7 @@ class ImageResizerApp(QMainWindow):
             'arrow': self.toolbar.arrow_btn,
             'circle': self.toolbar.circle_btn,
             'rectangle': self.toolbar.rect_btn,
+            'text': self.toolbar.text_btn,
         }
         
         # Uncheck all buttons
