@@ -108,6 +108,10 @@ class BaseShapeHandler:
                     rect = shape.rect()
                     rect.translate(shape.pos())
                     painter.drawEllipse(rect)
+                elif isinstance(shape, QGraphicsRectItem):
+                    rect = shape.rect()
+                    rect.translate(shape.pos())
+                    painter.drawRect(rect)
                 
                 painter.end()
                 
@@ -284,6 +288,8 @@ class BaseShapeHandler:
                 self.app.toolbar.arrow_btn.setChecked(False)
             if hasattr(self.app.toolbar, 'circle_btn'):
                 self.app.toolbar.circle_btn.setChecked(False)
+            if hasattr(self.app.toolbar, 'rect_btn'):
+                self.app.toolbar.rect_btn.setChecked(False)
         return False
 
     def handle_mouse_move(self, event, pos):

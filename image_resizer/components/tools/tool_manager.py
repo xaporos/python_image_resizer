@@ -3,6 +3,7 @@ from .crop_tool import CropTool
 from .pencil_tool import PencilTool
 from .arrow_tool import ArrowTool
 from .circle_tool import CircleTool
+from .rectangle_tool import RectangleTool
 
 class ToolManager:
     def __init__(self, app):
@@ -13,12 +14,17 @@ class ToolManager:
             'pencil': PencilTool(app),
             'arrow': ArrowTool(app),
             'circle': CircleTool(app),
+            'rectangle': RectangleTool(app),
             # We'll add other tools here later
         }
 
     def set_tool(self, tool_name):
         """Set the current tool"""
         print(f"Setting tool to: {tool_name}")
+        
+        # Finalize any current shape before deactivating tool
+        if self.current_tool and hasattr(self.current_tool, 'shape_handler'):
+            self.current_tool.shape_handler.finalize_shape()
         
         # Deactivate current tool
         if self.current_tool:
@@ -41,6 +47,8 @@ class ToolManager:
             self.app.toolbar.pencil_btn.setChecked(tool_name == 'pencil')
         if hasattr(self.app.toolbar, 'crop_btn'):
             self.app.toolbar.crop_btn.setChecked(tool_name == 'crop')
+        if hasattr(self.app.toolbar, 'rect_btn'):
+            self.app.toolbar.rect_btn.setChecked(tool_name == 'rectangle')
 
     def handle_mouse_press(self, event):
         if self.current_tool:
