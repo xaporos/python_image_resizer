@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsPixmapItem
+from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsPixmapItem, QGraphicsEllipseItem
 from PyQt5.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt5.QtGui import QPen, QBrush, QPainter
 import math
@@ -70,7 +70,6 @@ class BaseShapeHandler:
             # Get shape data before cleanup
             shape = self.selected_shape
             pen = shape.pen()
-            is_arrow = shape.data(0) == "arrow" if shape.scene() else False
             
             # Clean up handles first
             self.clear_handles()
@@ -82,7 +81,7 @@ class BaseShapeHandler:
                     pixmap = item.pixmap().copy()
                     break
                 
-            if pixmap and shape.scene():  # Check again if shape still exists
+            if pixmap and shape.scene():
                 painter = QPainter(pixmap)
                 painter.setPen(pen)
                 painter.setRenderHint(QPainter.Antialiasing)
@@ -93,7 +92,7 @@ class BaseShapeHandler:
                     painter.drawLine(line)
                     
                     # Draw arrow head if this is an arrow shape
-                    if is_arrow:
+                    if shape.data(0) == "arrow":
                         angle = math.atan2(line.dy(), line.dx())
                         arrow_size = 20.0
                         
@@ -105,6 +104,10 @@ class BaseShapeHandler:
                         
                         painter.drawLine(end, arrow_p1)
                         painter.drawLine(end, arrow_p2)
+                elif isinstance(shape, QGraphicsEllipseItem):
+                    rect = shape.rect()
+                    rect.translate(shape.pos())
+                    painter.drawEllipse(rect)
                 
                 painter.end()
                 
@@ -279,6 +282,8 @@ class BaseShapeHandler:
             # Uncheck the appropriate tool button
             if hasattr(self.app.toolbar, 'arrow_btn'):
                 self.app.toolbar.arrow_btn.setChecked(False)
+            if hasattr(self.app.toolbar, 'circle_btn'):
+                self.app.toolbar.circle_btn.setChecked(False)
         return False
 
     def handle_mouse_move(self, event, pos):

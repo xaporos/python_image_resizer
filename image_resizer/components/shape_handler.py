@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsItemGroup
+from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsItemGroup, QGraphicsEllipseItem
 from PyQt5.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt5.QtGui import QPen, QBrush, QColor, QTransform
 
@@ -166,4 +166,32 @@ class ShapeHandler:
         ]
 
         for handle, pos in zip(self.resize_handles, positions):
-            handle.setPos(pos) 
+            handle.setPos(pos)
+
+    def handle_shape_resize(self, pos):
+        """Handle shape resizing"""
+        if not self.selected_shape:
+            return
+
+        if isinstance(self.selected_shape, QGraphicsEllipseItem):
+            rect = QRectF(self.drag_start, pos).normalized()
+            self.selected_shape.setRect(rect)
+        elif isinstance(self.selected_shape, QGraphicsLineItem):
+            line = QLineF(self.drag_start, pos)
+            self.selected_shape.setLine(line)
+
+    def finalize_shape(self):
+        """Finalize the current shape"""
+        if not self.selected_shape:
+            return
+
+        if isinstance(self.selected_shape, QGraphicsEllipseItem):
+            # Handle circle finalization
+            rect = self.selected_shape.rect()
+            self.app.scene.removeItem(self.selected_shape)
+            self.selected_shape = None
+        elif isinstance(self.selected_shape, QGraphicsLineItem):
+            # Handle arrow finalization
+            line = self.selected_shape.line()
+            self.app.scene.removeItem(self.selected_shape)
+            self.selected_shape = None 

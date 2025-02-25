@@ -1,4 +1,5 @@
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from image_resizer.ui.styles import TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
 
@@ -133,3 +134,26 @@ class Toolbar(QWidget):
         controls_group.addWidget(self.resize_all_btn)
         
         self.layout.addLayout(controls_group) 
+
+class ToolBar(QToolBar):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setup_ui()
+
+    def setup_ui(self):
+        # Arrow tool
+        self.arrow_btn = QPushButton()
+        self.arrow_btn.setIcon(QIcon("image_resizer/assets/arrow.png"))
+        self.arrow_btn.setCheckable(True)
+        self.arrow_btn.clicked.connect(lambda: self.parent.set_tool('arrow'))
+        self.addWidget(self.arrow_btn)
+
+        # Circle tool
+        self.circle_btn = QPushButton()
+        self.circle_btn.setIcon(QIcon("image_resizer/assets/circle.png"))
+        self.circle_btn.setCheckable(True)
+        self.circle_btn.clicked.connect(lambda: self.parent.set_tool('circle'))
+        self.addWidget(self.circle_btn)
+
+        # Other tools... 

@@ -55,6 +55,7 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.crop_btn.clicked.connect(lambda: self.set_tool('crop'))
         self.toolbar.pencil_btn.clicked.connect(lambda: self.set_tool('pencil'))
         self.toolbar.arrow_btn.clicked.connect(lambda: self.set_tool('arrow'))
+        self.toolbar.circle_btn.clicked.connect(lambda: self.set_tool('circle'))
         
         # Connect undo/redo buttons
         self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
@@ -144,6 +145,7 @@ class ImageResizerApp(QMainWindow):
             'crop': self.toolbar.crop_btn,
             'pencil': self.toolbar.pencil_btn,
             'arrow': self.toolbar.arrow_btn,
+            'circle': self.toolbar.circle_btn,
         }
         
         # Uncheck all buttons
