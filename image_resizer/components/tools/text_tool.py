@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QGraphicsTextItem, QWidget, QHBoxLayout, 
-                           QFontComboBox, QSpinBox, QToolButton, QColorDialog)
-from PyQt5.QtGui import QFont, QPen, QColor, QTextCursor, QIcon
-from PyQt5.QtCore import Qt, QSize, QTimer
+                           QFontComboBox, QSpinBox, QToolButton, QColorDialog,
+                           QGraphicsPixmapItem)
+from PyQt5.QtGui import QFont, QPen, QColor, QTextCursor, QIcon, QPainter, QCursor
+from PyQt5.QtCore import Qt, QSize, QTimer, QRectF, QRect
 from .base_tool import BaseTool
 
 class TextFormatToolbar(QWidget):
@@ -10,7 +11,6 @@ class TextFormatToolbar(QWidget):
         self.setup_ui()
         self.hide()
         self.text_item = None
-        self.is_interacting = False
         
     def setup_ui(self):
         layout = QHBoxLayout(self)
@@ -29,7 +29,6 @@ class TextFormatToolbar(QWidget):
         self.size_spin.setRange(8, 72)
         self.size_spin.setValue(12)
         self.size_spin.setFixedWidth(50)
-        self.size_spin.valueChanged.connect(lambda: self.setInteracting(True))
         layout.addWidget(self.size_spin)
         
         # Bold button
@@ -57,6 +56,30 @@ class TextFormatToolbar(QWidget):
         self.color_btn.clicked.connect(lambda: self.setInteracting(True))
         layout.addWidget(self.color_btn)
         
+        # Add some spacing
+        layout.addSpacing(10)
+        
+        # Apply button
+        self.apply_btn = QToolButton()
+        self.apply_btn.setText("✓")  # Checkmark symbol
+        self.apply_btn.setToolTip("Apply text and finish editing")
+        self.apply_btn.setFixedSize(QSize(24, 24))
+        self.apply_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 3px;
+            }
+            QToolButton:hover {
+                background-color: #45a049;
+            }
+            QToolButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        layout.addWidget(self.apply_btn)
+        
         self.setFixedHeight(40)
         self.adjustSize()
 
@@ -72,7 +95,9 @@ class TextFormatToolbar(QWidget):
 
     def leaveEvent(self, event):
         super().leaveEvent(event)
-        QTimer.singleShot(200, self.stopInteracting)
+        # Only stop interacting if we're not using controls
+        if not self.childAt(self.mapFromGlobal(QCursor.pos())):
+            QTimer.singleShot(500, self.stopInteracting)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -83,23 +108,25 @@ class TextFormatToolbar(QWidget):
         self.is_showing = False
 
     def mousePressEvent(self, event):
-        self.is_interacting = True
+        # Prevent toolbar from hiding when clicked
         event.accept()
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        QTimer.singleShot(200, self.stopInteracting)
+        # Keep interaction state for a bit longer
+        QTimer.singleShot(1000, self.stopInteracting)
 
     def stopInteracting(self):
-        self.is_interacting = False
+        # Only stop if we're not currently using any controls
+        if not self.underMouse() and not self.hasFocus():
+            self.is_interacting = False
 
     def focusOutEvent(self, event):
+        # Ignore focus out if we're still interacting
+        if self.is_interacting:
+            event.ignore()
+            return
         super().focusOutEvent(event)
-        QTimer.singleShot(200, self.checkHideToolbar)
-
-    def checkHideToolbar(self):
-        if not self.hasFocus() and not self.format_toolbar.is_interacting:
-            self.format_toolbar.hide()
 
 class SimpleTextItem(QGraphicsTextItem):
     def __init__(self, format_toolbar, parent=None):
@@ -114,7 +141,7 @@ class SimpleTextItem(QGraphicsTextItem):
         
     def focusInEvent(self, event):
         super().focusInEvent(event)
-        # Show and position toolbar
+        # Show toolbar when text item gets focus
         scene_pos = self.mapToScene(self.boundingRect().topLeft())
         view = self.scene().views()[0]
         view_pos = view.mapFromScene(scene_pos)
@@ -122,16 +149,31 @@ class SimpleTextItem(QGraphicsTextItem):
         
         toolbar_x = screen_pos.x()
         toolbar_y = screen_pos.y() - self.format_toolbar.height() - 10
+        
         self.format_toolbar.move(toolbar_x, toolbar_y)
         self.format_toolbar.show()
         self.format_toolbar.raise_()
 
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
-        QTimer.singleShot(200, self.checkHideToolbar)
+        # Only hide toolbar if clicking outside both text item and toolbar
+        cursor_pos = QCursor.pos()
+        toolbar_rect = self.format_toolbar.geometry()
+        
+        # Get text item's screen coordinates
+        view = self.scene().views()[0]
+        scene_rect = self.sceneBoundingRect()
+        top_left = view.mapToGlobal(view.mapFromScene(scene_rect.topLeft()))
+        bottom_right = view.mapToGlobal(view.mapFromScene(scene_rect.bottomRight()))
+        text_rect = QRect(top_left, bottom_right)
+        
+        if not toolbar_rect.contains(cursor_pos) and not text_rect.contains(cursor_pos):
+            QTimer.singleShot(200, self.checkHideToolbar)
 
     def checkHideToolbar(self):
-        if not self.hasFocus() and not self.format_toolbar.is_interacting:
+        cursor_pos = QCursor.pos()
+        toolbar_rect = self.format_toolbar.geometry()
+        if not toolbar_rect.contains(cursor_pos) and not self.hasFocus():
             self.format_toolbar.hide()
 
     def paint(self, painter, option, widget):
@@ -149,6 +191,7 @@ class TextTool(BaseTool):
         self.text_item = None
         self.format_toolbar = TextFormatToolbar()
         self.setup_format_toolbar()
+        self.initial_activation = True  # Track first activation
 
     def setup_format_toolbar(self):
         # Make toolbar and its widgets focusable
@@ -165,13 +208,18 @@ class TextTool(BaseTool):
         self.format_toolbar.bold_btn.toggled.connect(self.update_bold)
         self.format_toolbar.italic_btn.toggled.connect(self.update_italic)
         self.format_toolbar.color_btn.clicked.connect(self.choose_color)
+        self.format_toolbar.apply_btn.clicked.connect(self.apply_text)
 
     def activate(self):
         super().activate()
-        # Don't show toolbar until text item is created
-        self.format_toolbar.hide()
+        self.text_item = None
+        # Hide toolbar only on first activation
+        if self.initial_activation:
+            self.format_toolbar.hide()
+            self.initial_activation = False
 
     def deactivate(self):
+        self.initial_activation = True  # Reset for next activation
         super().deactivate()
         self.format_toolbar.hide()
         if self.text_item:
@@ -184,7 +232,6 @@ class TextTool(BaseTool):
     def mouse_press(self, event):
         pos = self.app.view.mapToScene(event.pos())
         
-        # If clicking outside current text item, finalize it
         if self.text_item:
             if not self.text_item.contains(self.text_item.mapFromScene(pos)):
                 if not self.text_item.toPlainText().strip():
@@ -199,7 +246,13 @@ class TextTool(BaseTool):
         self.text_item = SimpleTextItem(self.format_toolbar)
         self.text_item.setPos(pos)
         self.app.scene.addItem(self.text_item)
-        self.text_item.setFocus()
+        
+        # Delay focus to ensure proper initialization
+        QTimer.singleShot(100, lambda: self.setTextItemFocus())
+        
+    def setTextItemFocus(self):
+        if self.text_item and self.text_item.scene():
+            self.text_item.setFocus()
 
     def update_font(self, font):
         if self.text_item:
@@ -212,6 +265,8 @@ class TextTool(BaseTool):
             current_font = self.text_item.font()
             current_font.setPointSize(size)
             self.text_item.setFont(current_font)
+            # Update the size spinner to reflect the actual size
+            self.format_toolbar.size_spin.setValue(size)
 
     def update_bold(self, bold):
         if self.text_item:
@@ -232,4 +287,49 @@ class TextTool(BaseTool):
                 self.text_item.setDefaultTextColor(color)
                 # Update color button appearance
                 self.format_toolbar.color_btn.setStyleSheet(
-                    f"QToolButton {{ color: {color.name()}; }}") 
+                    f"QToolButton {{ color: {color.name()}; }}")
+
+    def apply_text(self):
+        """Finalize the text and deselect the tool"""
+        if self.text_item:
+            if self.text_item.toPlainText().strip():
+                # Get the text item's properties before removing it
+                text = self.text_item.toPlainText()
+                font = self.text_item.font()
+                color = self.text_item.defaultTextColor()
+                pos = self.text_item.pos()
+                rect = self.text_item.boundingRect()
+                
+                # Remove the interactive text item
+                self.text_item.clearFocus()
+                self.app.scene.removeItem(self.text_item)
+                
+                # Find the pixmap item and draw the text permanently
+                for item in self.app.scene.items():
+                    if isinstance(item, QGraphicsPixmapItem):
+                        pixmap = item.pixmap().copy()
+                        painter = QPainter(pixmap)
+                        painter.setFont(font)
+                        painter.setPen(color)
+                        painter.drawText(
+                            QRectF(pos.x(), pos.y(), rect.width(), rect.height()),
+                            Qt.TextWordWrap,
+                            text
+                        )
+                        painter.end()
+                        
+                        # Update scene with new pixmap
+                        self.app.scene.clear()
+                        self.app.scene.addPixmap(pixmap)
+                        break
+                
+                self.app.image_handler.save_state()
+                self.text_item = None
+            else:
+                self.app.scene.removeItem(self.text_item)
+                self.text_item = None
+            
+        self.format_toolbar.hide()
+        if hasattr(self.app.toolbar, 'text_btn'):
+            self.app.toolbar.text_btn.setChecked(False)
+        self.app.tool_manager.set_tool(None) 
