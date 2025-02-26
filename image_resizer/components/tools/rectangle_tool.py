@@ -11,6 +11,15 @@ class RectangleTool(BaseTool):
         self.current_color = Qt.red
         self.line_width = 2
         self.rect_item = None
+        self.drawing = False
+        self.last_point = None
+
+    def activate(self):
+        super().activate()
+        # Reset state when tool is activated
+        self.rect_item = None
+        self.drawing = False
+        self.last_point = None
 
     def mouse_press(self, event):
         pos = self.app.view.mapToScene(event.pos())
@@ -30,10 +39,12 @@ class RectangleTool(BaseTool):
     def mouse_move(self, event):
         pos = self.app.view.mapToScene(event.pos())
         
+        # Handle shape handler movement first
         if self.shape_handler.handle_mouse_move(event, pos):
             return
             
-        if self.drawing and self.last_point:
+        # Only handle drawing if we're actively drawing and have valid items
+        if self.drawing and self.rect_item and self.rect_item.scene() and self.last_point:
             rect = QRectF(self.last_point, pos).normalized()
             self.rect_item.setRect(rect)
 
@@ -46,8 +57,18 @@ class RectangleTool(BaseTool):
         self.drawing = False
         pos = self.app.view.mapToScene(event.pos())
         
-        if self.last_point and self.rect_item:
+        if self.rect_item and self.rect_item.scene() and self.last_point:
             rect = QRectF(self.last_point, pos).normalized()
             self.rect_item.setRect(rect)
             self.shape_handler.select_shape(self.rect_item)
-            self.last_point = None 
+            self.last_point = None
+            self.rect_item = None
+
+    def deactivate(self):
+        super().deactivate()
+        # Clean up any ongoing drawing
+        if self.rect_item and self.rect_item.scene():
+            self.app.scene.removeItem(self.rect_item)
+        self.rect_item = None
+        self.drawing = False
+        self.last_point = None 
