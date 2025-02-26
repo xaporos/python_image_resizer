@@ -293,6 +293,9 @@ class TextTool(BaseTool):
         """Finalize the text and deselect the tool"""
         if self.text_item:
             if self.text_item.toPlainText().strip():
+                # Save state before making changes
+                self.app.image_handler.save_state()
+                
                 # Get the text item's properties before removing it
                 text = self.text_item.toPlainText()
                 font = self.text_item.font()
@@ -323,7 +326,6 @@ class TextTool(BaseTool):
                         self.app.scene.addPixmap(pixmap)
                         break
                 
-                self.app.image_handler.save_state()
                 self.text_item = None
             else:
                 self.app.scene.removeItem(self.text_item)
