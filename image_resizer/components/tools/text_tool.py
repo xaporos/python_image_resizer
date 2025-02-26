@@ -145,13 +145,28 @@ class SimpleTextItem(QGraphicsTextItem):
         self.format_toolbar.text_item = self
         self.setDefaultTextColor(Qt.black)
         self.setFont(QFont("Arial", 12))
-        self.setTextWidth(300)
+        self.setTextWidth(-1)  # -1 means no width constraint
         self.setFlag(QGraphicsTextItem.ItemIsFocusable)
-        self.setFlag(QGraphicsTextItem.ItemIsMovable)  # Make item movable
+        self.setFlag(QGraphicsTextItem.ItemIsMovable)
         self.setTextInteractionFlags(Qt.TextEditorInteraction)
         self.dragging = False
         self.last_pos = None
         
+        # Set minimum width for empty field
+        self.document().setTextWidth(370)
+        
+    def keyPressEvent(self, event):
+        super().keyPressEvent(event)
+        # Update width after each keystroke
+        self.updateWidth()
+        
+    def updateWidth(self):
+        # Calculate ideal width based on content
+        doc = self.document()
+        doc.setTextWidth(-1)  # Temporarily remove width constraint
+        new_width = max(370, doc.idealWidth())  # Use 370 as minimum width
+        doc.setTextWidth(new_width)
+
     def focusInEvent(self, event):
         super().focusInEvent(event)
         # Show toolbar when text item gets focus
