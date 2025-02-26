@@ -232,24 +232,28 @@ class TextTool(BaseTool):
     def mouse_press(self, event):
         pos = self.app.view.mapToScene(event.pos())
         
+        # If we have an existing text item
         if self.text_item:
+            # If clicking outside current text item
             if not self.text_item.contains(self.text_item.mapFromScene(pos)):
-                if not self.text_item.toPlainText().strip():
-                    self.app.scene.removeItem(self.text_item)
-                else:
-                    self.app.image_handler.save_state()
+                # Always remove the existing text item when clicking in a new location
+                self.app.scene.removeItem(self.text_item)
                 self.text_item = None
                 self.format_toolbar.hide()
+                
+                # Create new text item at the new location
+                self.text_item = SimpleTextItem(self.format_toolbar)
+                self.text_item.setPos(pos)
+                self.app.scene.addItem(self.text_item)
+                QTimer.singleShot(100, lambda: self.setTextItemFocus())
             return
 
-        # Create new text item
+        # Create new text item if we don't have one
         self.text_item = SimpleTextItem(self.format_toolbar)
         self.text_item.setPos(pos)
         self.app.scene.addItem(self.text_item)
-        
-        # Delay focus to ensure proper initialization
         QTimer.singleShot(100, lambda: self.setTextItemFocus())
-        
+
     def setTextItemFocus(self):
         if self.text_item and self.text_item.scene():
             self.text_item.setFocus()
