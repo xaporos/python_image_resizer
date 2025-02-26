@@ -11,6 +11,8 @@ class TextFormatToolbar(QWidget):
         self.setup_ui()
         self.hide()
         self.text_item = None
+        self.dragging = False
+        self.drag_start_pos = None
         
     def setup_ui(self):
         layout = QHBoxLayout(self)
@@ -108,10 +110,18 @@ class TextFormatToolbar(QWidget):
         self.is_showing = False
 
     def mousePressEvent(self, event):
-        # Prevent toolbar from hiding when clicked
-        event.accept()
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.drag_start_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self.dragging and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPos() - self.drag_start_pos)
+            event.accept()
 
     def mouseReleaseEvent(self, event):
+        self.dragging = False
         super().mouseReleaseEvent(event)
         # Keep interaction state for a bit longer
         QTimer.singleShot(1000, self.stopInteracting)
@@ -137,7 +147,10 @@ class SimpleTextItem(QGraphicsTextItem):
         self.setFont(QFont("Arial", 12))
         self.setTextWidth(300)
         self.setFlag(QGraphicsTextItem.ItemIsFocusable)
+        self.setFlag(QGraphicsTextItem.ItemIsMovable)  # Make item movable
         self.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.dragging = False
+        self.last_pos = None
         
     def focusInEvent(self, event):
         super().focusInEvent(event)
@@ -184,6 +197,38 @@ class SimpleTextItem(QGraphicsTextItem):
             pen.setStyle(Qt.DashLine)
             painter.setPen(pen)
             painter.drawRect(rect)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.last_pos = event.scenePos()
+            # Keep focus while dragging
+            self.setFocus()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.dragging and (event.buttons() & Qt.LeftButton):
+            # Calculate movement delta
+            delta = event.scenePos() - self.last_pos
+            self.setPos(self.pos() + delta)
+            self.last_pos = event.scenePos()
+            
+            # Update toolbar position
+            scene_pos = self.mapToScene(self.boundingRect().topLeft())
+            view = self.scene().views()[0]
+            view_pos = view.mapFromScene(scene_pos)
+            screen_pos = view.mapToGlobal(view_pos)
+            
+            toolbar_x = screen_pos.x()
+            toolbar_y = screen_pos.y() - self.format_toolbar.height() - 10
+            self.format_toolbar.move(toolbar_x, toolbar_y)
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = False
+        super().mouseReleaseEvent(event)
 
 class TextTool(BaseTool):
     def __init__(self, app):
