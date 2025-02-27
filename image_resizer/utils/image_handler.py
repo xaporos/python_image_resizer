@@ -154,59 +154,59 @@ class ImageHandler:
             QMessageBox.critical(self.parent, "Error", f"Failed to save image: {str(e)}")
 
     def resize_all_images(self):
+        """Resize all images without saving"""
         if not self.images:
             QMessageBox.warning(self.parent, "Warning", "No images loaded!")
             return
         
-        # Get output directory
-        output_dir = self.resizer.get_output_directory(self.parent)
-        if not output_dir:
-            return
-        
-        success_count = 0
-        total_original_size = 0
-        total_new_size = 0
-        
-        size_preset = self.parent.toolbar.size_combo.currentText()
-        quality = self.parent.toolbar.quality_slider.value()
-        
-        for file_path, image in self.images.items():
-            try:
+        try:
+            # Get current settings
+            size_preset = self.parent.toolbar.size_combo.currentText()
+            quality = self.parent.toolbar.quality_slider.value()
+            
+            # Store current selection to restore later
+            current_item = self.parent.image_list.currentItem()
+            
+            # Process all images
+            for file_path, image in self.images.items():
                 # Resize image
                 resized_image = self.resizer.resize_single(image, size_preset)
                 if not resized_image:
                     continue
                 
-                output_path = os.path.join(output_dir, f"resized_{os.path.basename(file_path)}")
+                # Save to bytes with quality
+                img_byte_arr = BytesIO()
+                resized_image.save(img_byte_arr, format='JPEG', quality=quality)
+                img_byte_arr.seek(0)
                 
-                # Get original size before saving
-                original_size = os.path.getsize(file_path)
-                total_original_size += original_size
+                # Convert to QPixmap
+                qimage = QImage.fromData(img_byte_arr.getvalue())
+                pixmap = QPixmap.fromImage(qimage)
                 
-                # Save resized image
-                if self.resizer.save_image(resized_image, output_path, quality):
-                    new_size = os.path.getsize(output_path)
-                    total_new_size += new_size
-                    success_count += 1
+                # Store edited version
+                self.edited_images[file_path] = pixmap
+                self.current_dimensions[file_path] = resized_image.size
+                self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
                 
-            except Exception as e:
-                QMessageBox.warning(
-                    self.parent, 
-                    "Warning", 
-                    f"Failed to resize {os.path.basename(file_path)}: {str(e)}"
-                )
-        
-        if success_count > 0:
-            # Show statistics
-            orig_mb, new_mb, reduction = self.resizer.calculate_statistics(
-                total_original_size, total_new_size)
+                # If this is the current image, update the preview
+                if current_item and os.path.basename(file_path) == current_item.text():
+                    self.parent.scene.clear()
+                    self.parent.scene.addPixmap(pixmap)
+                    self.parent.view.setSceneRect(QRectF(pixmap.rect()))
+                    self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+                    self.update_info_label()
             
-            message = f"Successfully resized {success_count} of {len(self.images)} images\n\n"
-            message += f"Total original size: {orig_mb:.2f} MB\n"
-            message += f"Total new size: {new_mb:.2f} MB\n"
-            message += f"Total reduction: {reduction:.1f}%"
+            # Mark all as modified
+            self.modified = True
             
-            QMessageBox.information(self.parent, "Success", message)
+            QMessageBox.information(
+                self.parent,
+                "Success",
+                f"Successfully resized {len(self.images)} images!"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
 
     def image_selected(self, current, previous):
         """Handle image selection from the list"""
