@@ -45,8 +45,8 @@ class ImageResizerApp(QMainWindow):
         
         # Connect menu actions
         self.open_action.triggered.connect(self.image_handler.select_files)
-        self.save_selected_action.triggered.connect(self.image_handler.resize_image)
-        self.save_all_action.triggered.connect(self.image_handler.resize_all_images)
+        self.save_selected_action.triggered.connect(self.image_handler.save_current)
+        self.save_all_action.triggered.connect(self.image_handler.save_all)
         
         # Connect image list selection
         self.image_list.currentItemChanged.connect(self.image_handler.image_selected)
