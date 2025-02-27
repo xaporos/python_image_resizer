@@ -2,7 +2,7 @@ import os
 from PIL import Image
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QGraphicsPixmapItem
 from PyQt5.QtGui import QPixmap, QImage, QPainter
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import Qt, QRectF, QByteArray, QBuffer
 import numpy as np
 from image_resizer.utils.resizer import ImageResizer
 from io import BytesIO
@@ -63,24 +63,55 @@ class ImageHandler:
             return
             
         try:
-            # Get current settings
+            # First capture the current state with all modifications
+            scene = self.parent.scene
+            scene_rect = scene.sceneRect()
+            temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
+            temp_pixmap.fill(Qt.white)  # Fill with white instead of transparent
+            
+            # Render current scene with all modifications
+            painter = QPainter(temp_pixmap)
+            scene.render(painter)
+            painter.end()
+            
+            # Convert QPixmap to PIL Image for resizing
+            temp_buffer = QByteArray()
+            buffer = QBuffer(temp_buffer)
+            buffer.open(QBuffer.WriteOnly)
+            temp_pixmap.save(buffer, 'PNG')
+            buffer.close()
+            
+            # Convert to PIL Image and ensure RGB mode
+            modified_image = Image.open(BytesIO(temp_buffer.data()))
+            if modified_image.mode in ('RGBA', 'LA'):
+                # Convert to RGB by compositing on white background
+                background = Image.new('RGB', modified_image.size, 'white')
+                if modified_image.mode == 'RGBA':
+                    background.paste(modified_image, mask=modified_image.split()[3])
+                else:
+                    background.paste(modified_image, mask=modified_image.split()[1])
+                modified_image = background
+            
+            # Get current settings and resize
             size_preset = self.parent.toolbar.size_combo.currentText()
             quality = self.parent.toolbar.quality_slider.value()
             
-            # Resize image
-            resized_image = self.resizer.resize_single(self.current_image, size_preset)
+            # Resize the modified image
+            resized_image = self.resizer.resize_single(modified_image, size_preset)
             if not resized_image:
                 return
             
-            # Convert PIL Image to QPixmap and update display
-            # Save to bytes with quality
+            # Convert back to QPixmap with quality
             img_byte_arr = BytesIO()
             resized_image.save(img_byte_arr, format='JPEG', quality=quality)
             img_byte_arr.seek(0)
             
-            # Convert back to QPixmap
+            # Convert to QPixmap and update display
             qimage = QImage.fromData(img_byte_arr.getvalue())
             pixmap = QPixmap.fromImage(qimage)
+            
+            # Save state before updating
+            self.save_state()
             
             # Update scene
             self.parent.scene.clear()
@@ -423,35 +454,45 @@ class ImageHandler:
         success_count = 0
         quality = self.parent.toolbar.quality_slider.value()
         
-        for file_path in self.edited_images.keys():
-            try:
+        # Store current selection to restore later
+        current_item = self.parent.image_list.currentItem()
+        
+        try:
+            # Process each image in the list
+            for i in range(self.parent.image_list.count()):
+                item = self.parent.image_list.item(i)
+                file_path = self.get_file_path_from_item(item)
+                
+                if file_path not in self.edited_images:
+                    continue
+                    
+                # Get the edited pixmap for this image
+                pixmap = self.edited_images[file_path]
                 base_name = os.path.basename(file_path)
                 save_path = os.path.join(output_dir, f"edited_{base_name}")
                 
-                # Get current scene content
-                scene = self.parent.scene
-                scene_rect = scene.sceneRect()
-                temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
-                temp_pixmap.fill(Qt.transparent)
-                
-                painter = QPainter(temp_pixmap)
-                scene.render(painter)
-                painter.end()
-                
                 # Save with quality setting
-                temp_pixmap.save(save_path, quality=quality)
+                if save_path.lower().endswith(('.jpg', '.jpeg')):
+                    pixmap.save(save_path, 'JPEG', quality)
+                else:
+                    pixmap.save(save_path, 'PNG')
+                    
                 success_count += 1
                 
-            except Exception as e:
-                QMessageBox.warning(
-                    self.parent,
-                    "Warning",
-                    f"Failed to save {base_name}: {str(e)}"
-                )
+        except Exception as e:
+            QMessageBox.warning(
+                self.parent,
+                "Warning",
+                f"Failed to save images: {str(e)}"
+            )
+        finally:
+            # Restore original selection
+            if current_item:
+                self.parent.image_list.setCurrentItem(current_item)
         
         if success_count > 0:
             QMessageBox.information(
                 self.parent,
                 "Success",
-                f"Successfully saved {success_count} images!"
+                f"Successfully saved {success_count} images to {output_dir}!"
             ) 

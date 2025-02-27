@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsPathItem
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QPen, QColor
+from PyQt5.QtGui import QPen, QColor, QPainterPath
 from .base_tool import BaseTool
 
 class CropTool(BaseTool):
@@ -64,35 +64,29 @@ class CropTool(BaseTool):
         if self.crop_rect:
             self.finalize_crop()
 
-    def update_overlay(self, crop_rect):
+    def update_overlay(self, rect):
         """Update the overlay to show the cropped area"""
-        if hasattr(self, 'path_item') and self.path_item and self.path_item.scene():
-            self.app.scene.removeItem(self.path_item)
+        if not self.overlay_item:
+            return
         
-        from PyQt5.QtGui import QPainterPath
-        path = QPainterPath()
         full_rect = self.overlay_item.rect()
+        path = QPainterPath()
+        path.addRect(full_rect)
+        path.addRect(rect)
         
-        # Add four rectangles around the selection area
-        path.addRect(QRectF(full_rect.left(), full_rect.top(), 
-                          full_rect.width(), crop_rect.top() - full_rect.top()))  # Top
-        path.addRect(QRectF(full_rect.left(), crop_rect.bottom(), 
-                          full_rect.width(), full_rect.bottom() - crop_rect.bottom()))  # Bottom
-        path.addRect(QRectF(full_rect.left(), crop_rect.top(), 
-                          crop_rect.left() - full_rect.left(), crop_rect.height()))  # Left
-        path.addRect(QRectF(crop_rect.right(), crop_rect.top(), 
-                          full_rect.right() - crop_rect.right(), crop_rect.height()))  # Right
+        if self.path_item:
+            self.app.scene.removeItem(self.path_item)
         
         self.path_item = QGraphicsPathItem(path)
         self.path_item.setBrush(QColor(0, 0, 0, 127))
         self.path_item.setPen(QPen(Qt.NoPen))
         self.app.scene.addItem(self.path_item)
-        
-        # Keep the crop rectangle visible and on top
-        self.crop_rect.setZValue(2)
 
     def finalize_crop(self):
         """Apply the crop to the image"""
+        if not self.crop_rect:
+            return
+        
         try:
             # Get crop rectangle
             rect = self.crop_rect.rect().normalized()
@@ -107,11 +101,8 @@ class CropTool(BaseTool):
                     pixmap = item.pixmap()
                     cropped = pixmap.copy(rect.toRect())
                     
-                    # Clean up crop tool items
-                    self.deactivate()
-                    
                     # Update scene with cropped image
-                    self.app.scene.clear()
+                    self.app.scene.clear()  # This will delete all items
                     self.app.scene.addPixmap(cropped)
                     
                     # Update current dimensions
@@ -124,8 +115,49 @@ class CropTool(BaseTool):
                     
                     # Update info label
                     self.app.image_handler.update_info_label()
+                    self.app.image_handler.modified = True
                     break
-                    
+        except Exception as e:
+            print(f"Error in finalize_crop: {str(e)}")
         finally:
-            # Reset crop tool state
-            self.deactivate() 
+            # Clean up and deselect tool
+            try:
+                self.cleanup()
+            except Exception as e:
+                print(f"Error in cleanup: {str(e)}")
+            
+            if hasattr(self.app.toolbar, 'crop_btn'):
+                self.app.toolbar.crop_btn.setChecked(False)
+            self.app.tool_manager.set_tool(None)
+
+    def cleanup(self):
+        """Clean up temporary items"""
+        try:
+            # Remove items from scene if they exist and are still valid
+            if self.overlay_item is not None:
+                try:
+                    if self.overlay_item.scene():
+                        self.app.scene.removeItem(self.overlay_item)
+                except RuntimeError:
+                    pass  # Item was already deleted
+                
+            if self.crop_rect is not None:
+                try:
+                    if self.crop_rect.scene():
+                        self.app.scene.removeItem(self.crop_rect)
+                except RuntimeError:
+                    pass
+                
+            if self.path_item is not None:
+                try:
+                    if self.path_item.scene():
+                        self.app.scene.removeItem(self.path_item)
+                except RuntimeError:
+                    pass
+        finally:
+            # Reset all references
+            self.overlay_item = None
+            self.crop_rect = None
+            self.path_item = None
+            self.crop_start = None
+            self.cropping = False 
