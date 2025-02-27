@@ -94,29 +94,53 @@ class CropTool(BaseTool):
             # Find the pixmap item
             for item in self.app.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
-                    # Save state before cropping
-                    self.app.image_handler.save_state()
+                    # Get the original pixmap before any changes
+                    original_pixmap = item.pixmap()
+                    
+                    # Save the original state with dimensions
+                    current_item = self.app.image_list.currentItem()
+                    if current_item:
+                        file_path = self.app.image_handler.get_file_path_from_item(current_item)
+                        if file_path:
+                            # Store original dimensions and pixmap in history
+                            original_state = {
+                                'pixmap': original_pixmap.copy(),
+                                'dimensions': self.app.image_handler.current_dimensions[file_path],
+                                'file_size': self.app.image_handler.edited_file_sizes.get(file_path, 
+                                           self.app.image_handler.file_sizes[file_path])
+                            }
+                            self.app.image_handler.history.append(original_state)
+                            
+                            # Also store in image-specific history
+                            if file_path not in self.app.image_handler.image_histories:
+                                self.app.image_handler.image_histories[file_path] = []
+                            self.app.image_handler.image_histories[file_path].append(original_state)
                     
                     # Get the cropped portion of the image
-                    pixmap = item.pixmap()
-                    cropped = pixmap.copy(rect.toRect())
+                    cropped = original_pixmap.copy(rect.toRect())
                     
                     # Update scene with cropped image
                     self.app.scene.clear()  # This will delete all items
                     self.app.scene.addPixmap(cropped)
                     
-                    # Update current dimensions
-                    current_item = self.app.image_list.currentItem()
-                    if current_item:
-                        file_path = self.app.image_handler.get_file_path_from_item(current_item)
-                        if file_path:
-                            self.app.image_handler.current_dimensions[file_path] = (cropped.width(), cropped.height())
-                            self.app.image_handler.edited_file_sizes[file_path] = self.app.image_handler.calculate_file_size(cropped)
+                    # Update view to fit the cropped image
+                    self.app.view.setSceneRect(QRectF(cropped.rect()))
+                    self.app.view.fitInView(self.app.view.sceneRect(), Qt.KeepAspectRatio)
+                    
+                    # Update current dimensions and file size
+                    if current_item and file_path:
+                        self.app.image_handler.current_dimensions[file_path] = (cropped.width(), cropped.height())
+                        self.app.image_handler.edited_file_sizes[file_path] = self.app.image_handler.calculate_file_size(cropped)
+                        self.app.image_handler.edited_images[file_path] = cropped
                     
                     # Update info label
                     self.app.image_handler.update_info_label()
                     self.app.image_handler.modified = True
+                    
+                    # Enable undo button
+                    self.app.toolbar.undo_btn.setEnabled(True)
                     break
+                
         except Exception as e:
             print(f"Error in finalize_crop: {str(e)}")
         finally:

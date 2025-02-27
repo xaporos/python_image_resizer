@@ -249,30 +249,30 @@ class ImageHandler:
                     # Get the pixmap item (should be the last item in the scene)
                     for item in self.parent.view.scene().items():
                         if isinstance(item, QGraphicsPixmapItem):
+                            # Save current state
                             self.edited_images[prev_path] = item.pixmap().copy()
+                            # Save current history and dimensions
+                            self.image_histories[prev_path] = self.history.copy()
+                            self.image_redo_stacks[prev_path] = self.redo_stack.copy()
                             break
-                    
-                    # Save the history for the previous image
-                    self.image_histories[prev_path] = self.history.copy()
-                    self.image_redo_stacks[prev_path] = self.redo_stack.copy()
-                    if prev_path in self.edited_file_sizes:
-                        for item in self.parent.view.scene().items():
-                            if isinstance(item, QGraphicsPixmapItem):
-                                self.edited_file_sizes[prev_path] = self.calculate_file_size(item.pixmap())
-            
+        
             file_path = self.get_file_path_from_item(current)
             if file_path in self.images:
                 self.current_image = self.images[file_path]
                 
-                # Initialize dimensions and file size if not already set
-                if file_path not in self.original_dimensions:
-                    self.original_dimensions[file_path] = self.current_image.size
-                    self.current_dimensions[file_path] = self.current_image.size
-                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
-                
                 # Restore history for the current image
                 self.history = self.image_histories.get(file_path, [])
                 self.redo_stack = self.image_redo_stacks.get(file_path, [])
+                
+                # If we have history, use the latest state's dimensions
+                if self.history:
+                    latest_state = self.history[-1]
+                    self.current_dimensions[file_path] = latest_state['dimensions']
+                    self.edited_file_sizes[file_path] = latest_state['file_size']
+                else:
+                    # Use original dimensions if no history
+                    self.current_dimensions[file_path] = self.original_dimensions.get(file_path, self.current_image.size)
+                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
                 
                 # Check if we have an edited version
                 if file_path in self.edited_images:
@@ -347,18 +347,27 @@ class ImageHandler:
         # Find the pixmap item
         for item in self.parent.scene.items():
             if isinstance(item, QGraphicsPixmapItem):
-                # Save current state
-                self.history.append(item.pixmap().copy())
-                if len(self.history) > self.max_history:
-                    self.history.pop(0)
-                
-                # Clear redo stack when new action is performed
-                self.redo_stack.clear()
-                
-                # Update button states
-                self.parent.toolbar.undo_btn.setEnabled(True)
-                self.parent.toolbar.redo_btn.setEnabled(False)
-                break
+                current_item = self.parent.image_list.currentItem()
+                if current_item:
+                    file_path = self.get_file_path_from_item(current_item)
+                    if file_path:
+                        # Save current state
+                        state = {
+                            'pixmap': item.pixmap().copy(),
+                            'dimensions': self.current_dimensions[file_path],
+                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                        }
+                        self.history.append(state)
+                        if len(self.history) > self.max_history:
+                            self.history.pop(0)
+                        
+                        # Clear redo stack when new action is performed
+                        self.redo_stack.clear()
+                        
+                        # Update button states
+                        self.parent.toolbar.undo_btn.setEnabled(True)
+                        self.parent.toolbar.redo_btn.setEnabled(False)
+                        break
 
     def update_info_label(self):
         """Update the info labels with current image information"""
@@ -376,19 +385,40 @@ class ImageHandler:
         """Undo the last action"""
         if len(self.history) > 0:
             # Get the previous state
-            previous_pixmap = self.history.pop()
+            previous_state = self.history.pop()
             
-            # Add current state to redo stack before clearing
-            for item in self.parent.scene.items():
-                if isinstance(item, QGraphicsPixmapItem):
-                    self.redo_stack.append(item.pixmap().copy())
-                    break
+            # Add current state to redo stack
+            current_item = self.parent.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    current_pixmap = None
+                    for item in self.parent.scene.items():
+                        if isinstance(item, QGraphicsPixmapItem):
+                            current_pixmap = item.pixmap()
+                            break
+                    
+                    if current_pixmap:
+                        current_state = {
+                            'pixmap': current_pixmap.copy(),
+                            'dimensions': self.current_dimensions[file_path],
+                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                        }
+                        self.redo_stack.append(current_state)
             
-            # Clear all existing items
+            # Clear scene and restore previous state
             self.parent.scene.clear()
+            self.parent.scene.addPixmap(previous_state['pixmap'])
             
-            # Restore previous state
-            self.parent.scene.addPixmap(previous_pixmap)
+            # Update view to fit the image
+            self.parent.view.setSceneRect(QRectF(previous_state['pixmap'].rect()))
+            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+            
+            # Restore dimensions and file size
+            if current_item and file_path:
+                self.current_dimensions[file_path] = previous_state['dimensions']
+                self.edited_file_sizes[file_path] = previous_state['file_size']
+                self.edited_images[file_path] = previous_state['pixmap']
             
             # Update info label
             self.update_info_label()
@@ -401,26 +431,47 @@ class ImageHandler:
         """Redo the last undone action"""
         if len(self.redo_stack) > 0:
             # Get the next state
-            next_pixmap = self.redo_stack.pop()
+            next_state = self.redo_stack.pop()
             
             # Add current state to history before clearing
-            for item in self.parent.scene.items():
-                if isinstance(item, QGraphicsPixmapItem):
-                    self.history.append(item.pixmap().copy())
-                    break
+            current_item = self.parent.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    current_pixmap = None
+                    for item in self.parent.scene.items():
+                        if isinstance(item, QGraphicsPixmapItem):
+                            current_pixmap = item.pixmap()
+                            break
+                    
+                    if current_pixmap:
+                        current_state = {
+                            'pixmap': current_pixmap.copy(),
+                            'dimensions': self.current_dimensions[file_path],
+                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+                        }
+                        self.history.append(current_state)
             
-            # Clear all existing items
+            # Clear scene and restore next state
             self.parent.scene.clear()
+            self.parent.scene.addPixmap(next_state['pixmap'])
             
-            # Restore next state
-            self.parent.scene.addPixmap(next_pixmap)
+            # Update view to fit the image
+            self.parent.view.setSceneRect(QRectF(next_state['pixmap'].rect()))
+            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+            
+            # Restore dimensions and file size
+            if current_item and file_path:
+                self.current_dimensions[file_path] = next_state['dimensions']
+                self.edited_file_sizes[file_path] = next_state['file_size']
+                self.edited_images[file_path] = next_state['pixmap']
             
             # Update info label
             self.update_info_label()
             
             # Update button states
             self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
-            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0) 
+            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0)
 
     def get_file_path_from_item(self, item):
         """Get the full file path from a list item"""
