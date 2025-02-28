@@ -261,6 +261,12 @@ class ImageHandler:
     def image_selected(self, current, previous):
         """Handle image selection from the list"""
         if current:
+            # Finalize any active drawing operations
+            if hasattr(self.parent, 'tool_manager') and self.parent.tool_manager.current_tool:
+                self.parent.tool_manager.current_tool.deactivate()
+                if hasattr(self.parent.tool_manager.current_tool, 'shape_handler'):
+                    self.parent.tool_manager.current_tool.shape_handler.finalize_shape()
+
             # Save current canvas state and history if there is one
             if previous and self.parent.view.scene().items():
                 prev_path = self.get_file_path_from_item(previous)

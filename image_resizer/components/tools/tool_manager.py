@@ -22,9 +22,7 @@ class ToolManager:
 
     def set_tool(self, tool_name):
         """Set the current tool"""
-        print(f"Setting tool to: {tool_name}")
-        
-        # Finalize any current shape before deactivating tool
+        # Finalize any active shapes on the current tool
         if self.current_tool and hasattr(self.current_tool, 'shape_handler'):
             self.current_tool.shape_handler.finalize_shape()
         
@@ -33,12 +31,9 @@ class ToolManager:
             self.current_tool.deactivate()
         
         # Set new tool
-        if tool_name is None:
-            self.current_tool = None
-        else:
-            self.current_tool = self.tools.get(tool_name)
-            if self.current_tool:
-                self.current_tool.activate()
+        self.current_tool = self.tools.get(tool_name)
+        if self.current_tool:
+            self.current_tool.activate()
 
         # Update toolbar button states
         if hasattr(self.app.toolbar, 'arrow_btn'):
