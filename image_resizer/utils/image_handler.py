@@ -1,6 +1,6 @@
 import os
 from PIL import Image
-from PyQt5.QtWidgets import QFileDialog, QMessageBox, QGraphicsPixmapItem
+from PyQt5.QtWidgets import QFileDialog, QMessageBox, QGraphicsPixmapItem, QApplication
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QRectF, QByteArray, QBuffer
 import numpy as np
@@ -199,18 +199,37 @@ class ImageHandler:
             current_item = self.parent.image_list.currentItem()
             
             # Process all images
-            for file_path, image in self.images.items():
-                # Resize image
-                resized_image = self.resizer.resize_single(image, size_preset)
+            for i in range(self.parent.image_list.count()):
+                item = self.parent.image_list.item(i)
+                file_path = self.get_file_path_from_item(item)
+                if not file_path:
+                    continue
+                
+                # Get the original or edited image for this file
+                source_image = None
+                if file_path in self.edited_images:
+                    # Convert QPixmap to PIL Image
+                    pixmap = self.edited_images[file_path]
+                    temp_buffer = QByteArray()
+                    buffer = QBuffer(temp_buffer)
+                    buffer.open(QBuffer.WriteOnly)
+                    pixmap.save(buffer, 'PNG')
+                    buffer.close()
+                    source_image = Image.open(BytesIO(temp_buffer.data()))
+                else:
+                    source_image = self.images[file_path]
+                
+                # Resize the image
+                resized_image = self.resizer.resize_single(source_image, size_preset)
                 if not resized_image:
                     continue
                 
-                # Save to bytes with quality
+                # Convert to QPixmap with quality
                 img_byte_arr = BytesIO()
                 resized_image.save(img_byte_arr, format='JPEG', quality=quality)
                 img_byte_arr.seek(0)
                 
-                # Convert to QPixmap
+                # Convert to QPixmap and store
                 qimage = QImage.fromData(img_byte_arr.getvalue())
                 pixmap = QPixmap.fromImage(qimage)
                 
@@ -220,11 +239,11 @@ class ImageHandler:
                 self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
                 
                 # If this is the current image, update the preview
-                if current_item and os.path.basename(file_path) == current_item.text():
+                if item == current_item:
                     self.parent.scene.clear()
                     self.parent.scene.addPixmap(pixmap)
                     self.parent.view.setSceneRect(QRectF(pixmap.rect()))
-                    self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+                    self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
                     self.update_info_label()
             
             # Mark all as modified
@@ -233,7 +252,7 @@ class ImageHandler:
             QMessageBox.information(
                 self.parent,
                 "Success",
-                f"Successfully resized {len(self.images)} images!"
+                f"Successfully resized {self.parent.image_list.count()} images!"
             )
             
         except Exception as e:
@@ -255,7 +274,7 @@ class ImageHandler:
                             self.image_histories[prev_path] = self.history.copy()
                             self.image_redo_stacks[prev_path] = self.redo_stack.copy()
                             break
-        
+    
             file_path = self.get_file_path_from_item(current)
             if file_path in self.images:
                 self.current_image = self.images[file_path]
@@ -264,20 +283,16 @@ class ImageHandler:
                 self.history = self.image_histories.get(file_path, [])
                 self.redo_stack = self.image_redo_stacks.get(file_path, [])
                 
-                # If we have history, use the latest state's dimensions
-                if self.history:
-                    latest_state = self.history[-1]
-                    self.current_dimensions[file_path] = latest_state['dimensions']
-                    self.edited_file_sizes[file_path] = latest_state['file_size']
-                else:
-                    # Use original dimensions if no history
-                    self.current_dimensions[file_path] = self.original_dimensions.get(file_path, self.current_image.size)
-                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
-                
-                # Check if we have an edited version
+                # Check if we have an edited version first
                 if file_path in self.edited_images:
+                    # Use edited dimensions and update preview
+                    pixmap = self.edited_images[file_path]
+                    self.current_dimensions[file_path] = (pixmap.width(), pixmap.height())
                     self.update_preview_with_edited(file_path)
                 else:
+                    # Use original dimensions if no edited version
+                    self.current_dimensions[file_path] = self.original_dimensions.get(file_path, self.current_image.size)
+                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
                     self.update_preview_and_info(file_path)
                 
                 # Update undo/redo button states
