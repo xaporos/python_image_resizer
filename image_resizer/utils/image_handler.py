@@ -39,12 +39,14 @@ class ImageHandler:
                 try:
                     image = Image.open(file_path)
                     self.images[file_path] = image
-                    self.parent.image_list.addItem(os.path.basename(file_path))
+                    
+                    # Add to list with custom widget
+                    self.parent.add_image_to_list(os.path.basename(file_path))
                     
                     # Store original dimensions and file size
                     self.original_dimensions[file_path] = image.size
                     self.current_dimensions[file_path] = image.size
-                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)  # Convert to MB
+                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
                     
                 except Exception as e:
                     QMessageBox.warning(self.parent, "Warning", 
@@ -260,7 +262,18 @@ class ImageHandler:
 
     def image_selected(self, current, previous):
         """Handle image selection from the list"""
+        if previous:
+            # Hide rename button for previously selected item
+            prev_widget = self.parent.image_list.itemWidget(previous)
+            if prev_widget:
+                prev_widget.set_selected(False)
+        
         if current:
+            # Show rename button for newly selected item
+            curr_widget = self.parent.image_list.itemWidget(current)
+            if curr_widget:
+                curr_widget.set_selected(True)
+            
             # Finalize any active drawing operations
             if hasattr(self.parent, 'tool_manager') and self.parent.tool_manager.current_tool:
                 self.parent.tool_manager.current_tool.deactivate()
@@ -501,8 +514,20 @@ class ImageHandler:
 
     def get_file_path_from_item(self, item):
         """Get the full file path from a list item"""
+        if not item:
+            return None
+        
+        # Get the image name from the custom widget
+        widget = self.parent.image_list.itemWidget(item)
+        if widget:
+            image_name = widget.image_name
+        else:
+            # Fallback to item text if no widget
+            image_name = item.text()
+        
+        # Find matching path
         for path in self.images.keys():
-            if os.path.basename(path) == item.text():
+            if os.path.basename(path) == image_name:
                 return path
         return None
 
@@ -573,3 +598,56 @@ class ImageHandler:
                 "Success",
                 f"Successfully saved {success_count} images to {output_dir}!"
             ) 
+
+    def rename_image(self, old_name, new_name):
+        """Rename image file in the list"""
+        # Find the file path
+        old_path = None
+        for path in self.images.keys():
+            if os.path.basename(path) == old_name:
+                old_path = path
+                break
+        
+        if old_path:
+            # Create new path
+            new_path = os.path.join(os.path.dirname(old_path), new_name)
+            
+            # Update dictionaries
+            self.images[new_path] = self.images.pop(old_path)
+            if old_path in self.edited_images:
+                self.edited_images[new_path] = self.edited_images.pop(old_path)
+            if old_path in self.current_dimensions:
+                self.current_dimensions[new_path] = self.current_dimensions.pop(old_path)
+            if old_path in self.file_sizes:
+                self.file_sizes[new_path] = self.file_sizes.pop(old_path)
+            
+            # Update list widget
+            current_row = self.parent.image_list.currentRow()
+            self.parent.image_list.takeItem(current_row)
+            self.parent.add_image_to_list(new_name)
+            self.parent.image_list.setCurrentRow(current_row)
+
+    def delete_image(self, image_name):
+        """Delete image from the list"""
+        # Find the file path
+        for path in list(self.images.keys()):
+            if os.path.basename(path) == image_name:
+                # Remove from all dictionaries
+                self.images.pop(path)
+                self.edited_images.pop(path, None)
+                self.current_dimensions.pop(path, None)
+                self.file_sizes.pop(path, None)
+                
+                # Remove from list widget
+                for i in range(self.parent.image_list.count()):
+                    item = self.parent.image_list.item(i)
+                    if self.parent.image_list.itemWidget(item).image_name == image_name:
+                        self.parent.image_list.takeItem(i)
+                        break
+                
+                # Clear view if this was the current image
+                if not self.images:
+                    self.parent.scene.clear()
+                    self.parent.size_label.setText("Size: --")
+                    self.parent.file_size_label.setText("File size: --")
+                break 

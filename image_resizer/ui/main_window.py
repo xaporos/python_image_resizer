@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, QShortcut)
+                           QListWidget, QListWidgetItem, QSplitter, QMenuBar, 
+                           QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, 
+                           QShortcut)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QKeySequence
 from image_resizer.ui.styles import MAIN_STYLE
@@ -7,6 +9,7 @@ from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
 from image_resizer.components.tools.tool_manager import ToolManager
+from image_resizer.ui.custom_list_item import ImageListItemWidget
 
 class ImageResizerApp(QMainWindow):
     def __init__(self):
@@ -230,4 +233,14 @@ class ImageResizerApp(QMainWindow):
         
         # Alternative Redo shortcut (Ctrl+Y)
         self.redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Y"), self)
-        self.redo_shortcut_alt.activated.connect(self.image_handler.redo) 
+        self.redo_shortcut_alt.activated.connect(self.image_handler.redo)
+
+    def add_image_to_list(self, image_name):
+        """Add image to list with custom widget"""
+        item = QListWidgetItem()
+        widget = ImageListItemWidget(image_name)
+        widget.renamed.connect(self.image_handler.rename_image)
+        widget.deleted.connect(self.image_handler.delete_image)
+        item.setSizeHint(widget.sizeHint())
+        self.image_list.addItem(item)
+        self.image_list.setItemWidget(item, widget) 
