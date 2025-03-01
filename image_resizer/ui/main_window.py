@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel)
-from PyQt5.QtCore import Qt
+                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider)
+from PyQt5.QtCore import Qt, QSize
 from image_resizer.ui.styles import MAIN_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
@@ -12,7 +12,7 @@ class ImageResizerApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("resizex")
         self.setGeometry(100, 100, 1200, 800)
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(QSize(800, 600))
         
         # Apply main style
         self.setStyleSheet(MAIN_STYLE)
@@ -21,20 +21,76 @@ class ImageResizerApp(QMainWindow):
         self.setup_menu()
         
         # Create central widget and main layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        self.main_layout = QVBoxLayout(central_widget)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setSpacing(10)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Add image handler
-        self.image_handler = ImageHandler(self)
+        # Create scene and view first
+        self.scene = QGraphicsScene()
+        self.view = CustomGraphicsView(self.scene, self)
         
-        # Add tool manager
+        # Initialize handlers before toolbar
+        self.image_handler = ImageHandler(self)
         self.tool_manager = ToolManager(self)
         
-        # Initialize UI components
-        self.setup_ui()
+        # Create toolbar after handlers are initialized
+        self.toolbar = Toolbar(self)
+        self.main_layout.addWidget(self.toolbar)
+        
+        # Create horizontal layout for list and preview
+        content_layout = QHBoxLayout()
+        
+        # Create image list
+        self.image_list = QListWidget()
+        self.image_list.setMinimumWidth(280)
+        self.image_list.setMaximumWidth(280)
+        content_layout.addWidget(self.image_list)
+        
+        # Create preview area
+        preview_layout = QVBoxLayout()
+        preview_layout.addWidget(self.view)
+        
+        # Create bottom info bar with zoom
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(10, 5, 10, 5)
+        
+        # Info labels
+        self.size_label = QLabel("Size: --")
+        self.file_size_label = QLabel("File size: --")
+        
+        # Add info labels to left side
+        bottom_layout.addWidget(self.size_label)
+        bottom_layout.addWidget(self.file_size_label)
+        
+        # Add stretch to push zoom controls to right
+        bottom_layout.addStretch()
+        
+        # Zoom controls on right side
+        zoom_label = QLabel("Zoom:")
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setMinimum(10)
+        self.zoom_slider.setMaximum(400)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(150)
+        self.zoom_value_label = QLabel("100%")
+        self.zoom_value_label.setFixedWidth(50)
+        
+        bottom_layout.addWidget(zoom_label)
+        bottom_layout.addWidget(self.zoom_slider)
+        bottom_layout.addWidget(self.zoom_value_label)
+        
+        # Add bottom layout to preview layout
+        preview_layout.addLayout(bottom_layout)
+        
+        # Add preview layout to content layout
+        content_layout.addLayout(preview_layout)
+        
+        # Add content layout to main layout
+        self.main_layout.addLayout(content_layout)
+        
+        # Connect signals after all UI elements are created
         self.connect_signals()
         
     def connect_signals(self):
@@ -63,6 +119,9 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
         self.toolbar.redo_btn.clicked.connect(self.image_handler.redo)
         
+        # Connect zoom slider
+        self.zoom_slider.valueChanged.connect(self.zoom_changed)
+        
     def setup_menu(self):
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
@@ -80,55 +139,6 @@ class ImageResizerApp(QMainWindow):
         edit_menu = QMenu('&Edit', self)
         menubar.addMenu(edit_menu)
         
-    def setup_ui(self):
-        # Add toolbar
-        self.toolbar = Toolbar(self)
-        self.main_layout.addWidget(self.toolbar)
-        
-        # Create splitter for list and preview
-        splitter = QSplitter(Qt.Horizontal)
-        self.main_layout.addWidget(splitter)
-        
-        # Create list widget for images
-        self.image_list = QListWidget()
-        self.image_list.setMinimumWidth(280)
-        self.image_list.setMaximumWidth(280)
-        splitter.addWidget(self.image_list)
-        
-        # Create right panel for preview
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(10, 0, 0, 0)
-        splitter.addWidget(right_panel)
-        
-        # Create graphics scene and view
-        self.scene = QGraphicsScene()
-        self.view = CustomGraphicsView(self.scene, self)
-        right_layout.addWidget(self.view)
-        
-        # Set splitter sizes
-        splitter.setSizes([200, 950])
-        
-        # Add info bar
-        self.setup_info_bar()
-    
-    def setup_info_bar(self):
-        self.info_bar = QHBoxLayout()  # Make it an instance variable
-        self.info_bar.setSpacing(20)
-        self.info_bar.setContentsMargins(10, 2, 10, 2)
-        
-        # Create labels for image info
-        self.size_label = QLabel("Size: --")
-        self.size_label.setFixedHeight(20)
-        self.file_size_label = QLabel("File size: --")
-        self.file_size_label.setFixedHeight(20)
-        
-        self.info_bar.addStretch()
-        self.info_bar.addWidget(self.size_label)
-        self.info_bar.addWidget(self.file_size_label)
-        
-        self.main_layout.addLayout(self.info_bar)
-
     def select_files(self):
         pass  # We'll implement this later
         
@@ -167,4 +177,17 @@ class ImageResizerApp(QMainWindow):
         self.tool_manager.handle_mouse_move(event)
         
     def mouse_release(self, event):
-        self.tool_manager.handle_mouse_release(event) 
+        self.tool_manager.handle_mouse_release(event)
+
+    def zoom_changed(self, value):
+        """Handle zoom slider value changes"""
+        # Update zoom value label
+        self.zoom_value_label.setText(f"{value}%")
+        
+        # Calculate scale factor
+        scale = value / 100.0
+        
+        # Reset view transform
+        self.view.resetTransform()
+        # Apply new scale
+        self.view.scale(scale, scale) 
