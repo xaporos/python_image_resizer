@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider)
+                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider, QPushButton)
 from PyQt5.QtCore import Qt, QSize
 from image_resizer.ui.styles import MAIN_STYLE
 from image_resizer.ui.toolbar import Toolbar
@@ -77,9 +77,15 @@ class ImageResizerApp(QMainWindow):
         self.zoom_value_label = QLabel("100%")
         self.zoom_value_label.setFixedWidth(50)
         
+        # Add Fit button
+        self.fit_button = QPushButton("Fit")
+        self.fit_button.setFixedWidth(40)
+        self.fit_button.clicked.connect(self.fit_to_view)
+        
         bottom_layout.addWidget(zoom_label)
         bottom_layout.addWidget(self.zoom_slider)
         bottom_layout.addWidget(self.zoom_value_label)
+        bottom_layout.addWidget(self.fit_button)
         
         # Add bottom layout to preview layout
         preview_layout.addLayout(bottom_layout)
@@ -190,4 +196,16 @@ class ImageResizerApp(QMainWindow):
         # Reset view transform
         self.view.resetTransform()
         # Apply new scale
-        self.view.scale(scale, scale) 
+        self.view.scale(scale, scale)
+
+    def fit_to_view(self):
+        """Reset zoom to fit image to view"""
+        # Reset zoom slider and label
+        self.zoom_slider.setValue(100)
+        self.zoom_value_label.setText("100%")
+        
+        # Reset view transform
+        self.view.resetTransform()
+        
+        # Fit view to scene
+        self.view.fitInView(self.view.sceneRect(), Qt.KeepAspectRatio) 

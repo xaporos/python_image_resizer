@@ -285,6 +285,11 @@ class ImageHandler:
             if file_path in self.images:
                 self.current_image = self.images[file_path]
                 
+                # Reset zoom to 100%
+                self.parent.zoom_slider.setValue(100)
+                self.parent.zoom_value_label.setText("100%")
+                self.parent.view.resetTransform()
+                
                 # Restore history for the current image
                 self.history = self.image_histories.get(file_path, [])
                 self.redo_stack = self.image_redo_stacks.get(file_path, [])
