@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider, QPushButton)
+                           QListWidget, QSplitter, QMenuBar, QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, QShortcut)
 from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QKeySequence
 from image_resizer.ui.styles import MAIN_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
@@ -96,6 +97,9 @@ class ImageResizerApp(QMainWindow):
         # Add content layout to main layout
         self.main_layout.addLayout(content_layout)
         
+        # Add keyboard shortcuts for undo/redo
+        self.setup_shortcuts()
+        
         # Connect signals after all UI elements are created
         self.connect_signals()
         
@@ -127,6 +131,10 @@ class ImageResizerApp(QMainWindow):
         
         # Connect zoom slider
         self.zoom_slider.valueChanged.connect(self.zoom_changed)
+        
+        # Add tooltips with shortcuts for undo/redo buttons
+        self.toolbar.undo_btn.setToolTip("Undo (Ctrl+Z)")
+        self.toolbar.redo_btn.setToolTip("Redo (Ctrl+Y)")
         
     def setup_menu(self):
         menubar = QMenuBar(self)
@@ -208,4 +216,18 @@ class ImageResizerApp(QMainWindow):
         self.view.resetTransform()
         
         # Fit view to scene
-        self.view.fitInView(self.view.sceneRect(), Qt.KeepAspectRatio) 
+        self.view.fitInView(self.view.sceneRect(), Qt.KeepAspectRatio)
+
+    def setup_shortcuts(self):
+        """Setup keyboard shortcuts"""
+        # Undo - Ctrl+Z (Cmd+Z on Mac)
+        self.undo_shortcut = QShortcut(QKeySequence.Undo, self)
+        self.undo_shortcut.activated.connect(self.image_handler.undo)
+        
+        # Redo - Ctrl+Y or Ctrl+Shift+Z (Cmd+Shift+Z on Mac)
+        self.redo_shortcut = QShortcut(QKeySequence.Redo, self)
+        self.redo_shortcut.activated.connect(self.image_handler.redo)
+        
+        # Alternative Redo shortcut (Ctrl+Y)
+        self.redo_shortcut_alt = QShortcut(QKeySequence("Ctrl+Y"), self)
+        self.redo_shortcut_alt.activated.connect(self.image_handler.redo) 
