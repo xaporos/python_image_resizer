@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsPixmapItem, QGraphicsEllipseItem
 from PyQt5.QtCore import Qt, QRectF, QPointF, QLineF
-from PyQt5.QtGui import QPen, QBrush, QPainter
+from PyQt5.QtGui import QPen, QBrush, QPainter, QTransform
 import math
 
 class BaseShapeHandler:
@@ -14,6 +14,8 @@ class BaseShapeHandler:
         self.resize_handle = None
         self.start_pos = None
         self.original_rect = None
+        self.initial_shape_pos = None
+        self.initial_geometry = None
 
     def handle_shape_start(self, pos):
         """Start drawing or resizing a shape"""
@@ -200,9 +202,8 @@ class BaseShapeHandler:
         # Block signals temporarily to prevent flickering
         self.app.scene.blockSignals(True)
 
-        shape_pos = self.selected_shape.pos()
-        
         if isinstance(self.selected_shape, QGraphicsLineItem):
+            # Get line endpoints in scene coordinates
             line = self.selected_shape.line()
             positions = [
                 self.selected_shape.mapToScene(line.p1()),
@@ -251,6 +252,8 @@ class BaseShapeHandler:
             self.moving = False
             self.resize_handle = None
             self.start_pos = None
+            self.initial_shape_pos = None
+            self.initial_geometry = None
         except:
             # If any error occurs, just reset everything
             self.resize_handles = []
@@ -259,6 +262,8 @@ class BaseShapeHandler:
             self.moving = False
             self.resize_handle = None
             self.start_pos = None
+            self.initial_shape_pos = None
+            self.initial_geometry = None
 
     def handle_mouse_press(self, event, pos):
         """Handle mouse press for shape resizing"""
@@ -271,12 +276,19 @@ class BaseShapeHandler:
                 self.resizing = True
                 self.resize_handle = handle
                 self.start_pos = pos
+                # Store initial shape position and geometry
+                self.initial_shape_pos = self.selected_shape.pos()
+                if isinstance(self.selected_shape, QGraphicsLineItem):
+                    self.initial_geometry = self.selected_shape.line()
+                else:
+                    self.initial_geometry = self.selected_shape.rect()
                 return True
 
         # Check if clicking on the shape itself
         if self.selected_shape.contains(self.selected_shape.mapFromScene(pos)):
             self.moving = True
-            self.start_pos = pos - self.selected_shape.pos()
+            self.start_pos = pos
+            self.initial_shape_pos = self.selected_shape.pos()
             return True
 
         # If clicked outside, finalize the shape and deactivate tool
@@ -297,7 +309,7 @@ class BaseShapeHandler:
         if self.resizing and self.resize_handle:
             handle_index = self.resize_handles.index(self.resize_handle)
             if isinstance(self.selected_shape, QGraphicsLineItem):
-                # Convert scene position to item coordinates
+                # Keep line handling as is - it works correctly
                 item_pos = self.selected_shape.mapFromScene(pos)
                 line = self.selected_shape.line()
                 
@@ -306,12 +318,28 @@ class BaseShapeHandler:
                 else:  # End point
                     self.selected_shape.setLine(QLineF(line.p1(), item_pos))
             else:
-                new_rect = self.calculate_new_rect(pos, handle_index)
-                self.update_shape(new_rect)
+                # For circles and rectangles, use the same coordinate handling as lines
+                item_pos = self.selected_shape.mapFromScene(pos)
+                current_rect = self.selected_shape.rect()
+                
+                if handle_index == 0:  # Top-left
+                    new_rect = QRectF(item_pos, current_rect.bottomRight())
+                elif handle_index == 1:  # Top-right
+                    new_rect = QRectF(QPointF(current_rect.left(), item_pos.y()),
+                                    QPointF(item_pos.x(), current_rect.bottom()))
+                elif handle_index == 2:  # Bottom-left
+                    new_rect = QRectF(QPointF(item_pos.x(), current_rect.top()),
+                                    QPointF(current_rect.right(), item_pos.y()))
+                else:  # Bottom-right
+                    new_rect = QRectF(current_rect.topLeft(), item_pos)
+                
+                self.selected_shape.setRect(new_rect.normalized())
+            
             self.update_resize_handles()
             return True
         elif self.moving:
-            new_pos = pos - self.start_pos
+            delta = pos - self.start_pos
+            new_pos = self.initial_shape_pos + delta
             self.selected_shape.setPos(new_pos)
             self.update_resize_handles()
             return True
@@ -324,6 +352,13 @@ class BaseShapeHandler:
             self.moving = False
             self.resize_handle = None
             self.start_pos = None
+            # Update initial position and geometry
+            self.initial_shape_pos = self.selected_shape.pos()
+            if isinstance(self.selected_shape, QGraphicsLineItem):
+                self.initial_geometry = self.selected_shape.line()
+            else:
+                self.initial_geometry = self.selected_shape.rect()
+            self.update_resize_handles()
             return True
         return False
 
