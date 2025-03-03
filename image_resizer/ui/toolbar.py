@@ -62,6 +62,7 @@ class Toolbar(QWidget):
         tool_buttons = [
             ("▣", "crop_btn"),
             ("✎", "pencil_btn"),
+            ("─", "line_btn"),
             ("➔", "arrow_btn"),
             ("○", "circle_btn"),
             ("□", "rect_btn"),

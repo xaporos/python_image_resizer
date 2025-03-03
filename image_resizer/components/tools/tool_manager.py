@@ -5,6 +5,7 @@ from .arrow_tool import ArrowTool
 from .circle_tool import CircleTool
 from .rectangle_tool import RectangleTool
 from .text_tool import TextTool
+from .line_tool import LineTool
 
 class ToolManager:
     def __init__(self, app):
@@ -13,6 +14,7 @@ class ToolManager:
         self.tools = {
             'crop': CropTool(app),
             'pencil': PencilTool(app),
+            'line': LineTool(app),
             'arrow': ArrowTool(app),
             'circle': CircleTool(app),
             'rectangle': RectangleTool(app),
@@ -46,6 +48,8 @@ class ToolManager:
             self.app.toolbar.crop_btn.setChecked(tool_name == 'crop')
         if hasattr(self.app.toolbar, 'rect_btn'):
             self.app.toolbar.rect_btn.setChecked(tool_name == 'rectangle')
+        if hasattr(self.app.toolbar, 'line_btn'):
+            self.app.toolbar.line_btn.setChecked(tool_name == 'line')
 
     def handle_mouse_press(self, event):
         if self.current_tool:
