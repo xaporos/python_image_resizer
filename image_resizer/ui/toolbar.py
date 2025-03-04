@@ -175,19 +175,47 @@ class Toolbar(QWidget):
         # Quality slider container
         slider_container = QWidget()
         slider_container.setFixedWidth(180)
-        slider_container.setFixedHeight(32)  # Match button height
+        slider_container.setFixedHeight(28)
         slider_layout = QHBoxLayout(slider_container)
         slider_layout.setContentsMargins(0, 0, 0, 0)
+        slider_layout.setSpacing(5)
         
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setMinimum(1)
         self.quality_slider.setMaximum(100)
         self.quality_slider.setValue(80)
         self.quality_slider.setFixedWidth(120)
-        slider_layout.addWidget(self.quality_slider)
+        self.quality_slider.setFixedHeight(16)
+        self.quality_slider.setStyleSheet("""
+            QSlider {
+                margin: 0;
+                padding: 0;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #ddd;
+                margin: 6px 0;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                background: #1877F2;
+                border: none;
+                width: 16px;
+                height: 16px;
+                margin: -6px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #1464D2;
+            }
+        """)
         
         self.quality_label = QLabel("80%")
-        slider_layout.addWidget(self.quality_label)
+        self.quality_label.setFixedHeight(16)
+        self.quality_label.setAlignment(Qt.AlignVCenter)
+        
+        slider_layout.addWidget(self.quality_slider, 0, Qt.AlignVCenter)
+        slider_layout.addWidget(self.quality_label, 0, Qt.AlignVCenter)
         
         controls_group.addWidget(slider_container)
         controls_group.addSpacing(8)
