@@ -98,26 +98,84 @@ class Toolbar(QWidget):
             setattr(self, attr_name, btn)
         
         self.layout.addLayout(tools_group)
-        self.layout.addStretch()
+        
+        # Add vertical separator
+        separator = QWidget()
+        separator.setFixedWidth(1)
+        separator.setStyleSheet("""
+            background-color: #ddd;
+            margin: 5px 15px;
+        """)
+        separator.setFixedHeight(30)  # Match toolbar height
+        self.layout.addWidget(separator)
 
     def setup_controls(self):
         controls_group = QHBoxLayout()
         controls_group.setContentsMargins(0, 0, 0, 0)
         
-        # Size combo
+        # Size combo with modern style
+        size_layout = QHBoxLayout()
+        # size_label = QLabel("Size:")
+        # size_label.setStyleSheet("color: #666;")
+        # controls_group.addWidget(size_label)
+        
         self.size_combo = QComboBox()
         self.size_combo.addItems(["Small", "Medium", "Large"])
-        self.size_combo.setFixedWidth(80)
+        self.size_combo.setFixedWidth(100)
         self.size_combo.setFixedHeight(28)  # Match button height
-        self.size_combo.setStyleSheet(COMBO_BOX_STYLE)
+        self.size_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 4px 10px;
+                background: white;
+                color: #333;
+                font-weight: 500;
+            }
+            QComboBox:hover {
+                border-color: #1877F2;
+            }
+            QComboBox:focus {
+                border-color: #1877F2;
+                outline: none;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                color: #666;
+                font-size: 12px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-top: 3px;
+                padding: 5px;
+                min-width: 150px;  /* Make dropdown wider */
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
+                min-height: 24px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #f0f7ff;
+                color: #1877F2;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #1877F2;
+                color: white;
+            }
+        """)
         controls_group.addWidget(self.size_combo)
         
-        controls_group.addSpacing(10)
+        controls_group.addSpacing(8)
         
         # Quality slider container
         slider_container = QWidget()
         slider_container.setFixedWidth(180)
-        slider_container.setFixedHeight(28)  # Match button height
+        slider_container.setFixedHeight(32)  # Match button height
         slider_layout = QHBoxLayout(slider_container)
         slider_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -132,14 +190,22 @@ class Toolbar(QWidget):
         slider_layout.addWidget(self.quality_label)
         
         controls_group.addWidget(slider_container)
-        controls_group.addSpacing(10)
+        controls_group.addSpacing(8)
         
-        # Resize buttons with fixed height
-        button_style = TOOL_BUTTON_STYLE + """
+        # Resize buttons with matching style to Open button
+        button_style = """
             QPushButton {
                 background-color: #1877F2;
                 color: white;
                 padding: 4px 15px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #1464D2;
+            }
+            QPushButton:disabled {
+                background-color: #ccc;
             }
         """
         
