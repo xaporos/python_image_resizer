@@ -45,7 +45,6 @@ class LineTool(BaseTool):
         pen.setJoinStyle(Qt.RoundJoin)
         self.line_item.setPen(pen)
         self.line_item.setData(0, "line")
-        self.line_item.setFlag(QGraphicsLineItem.ItemIsMovable)
         self.line_item.setFlag(QGraphicsLineItem.ItemIsSelectable)
         self.app.scene.addItem(self.line_item)
 
@@ -55,25 +54,27 @@ class LineTool(BaseTool):
         if self.shape_handler.handle_mouse_move(event, pos):
             return
             
-        if self.drawing and self.start_point:
+        if self.drawing and self.start_point and self.line_item:
             line = QLineF(self.start_point, pos)
             self.line_item.setLine(line)
 
     def mouse_release(self, event):
-        if not self.drawing:
-            if self.shape_handler.handle_mouse_release(event):
-                return
+        if self.shape_handler.handle_mouse_release(event):
             return
-            
-        self.drawing = False
+
+        if not self.drawing:
+            return
+
         pos = self.app.view.mapToScene(event.pos())
         
-        if self.start_point:
+        if self.start_point and self.line_item and self.line_item.scene():
             line = QLineF(self.start_point, pos)
             self.line_item.setLine(line)
+            
             self.shape_handler.select_shape(self.line_item)
             
             if hasattr(self.app, 'image_handler'):
                 self.app.image_handler.save_state()
             
+            self.drawing = False
             self.start_point = None
