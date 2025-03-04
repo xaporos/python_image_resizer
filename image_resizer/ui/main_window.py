@@ -108,12 +108,12 @@ class ImageResizerApp(QMainWindow):
         
     def connect_signals(self):
         # Connect toolbar buttons
+        self.toolbar.open_btn.clicked.connect(self.image_handler.select_files)
         self.toolbar.save_btn.clicked.connect(self.image_handler.save_current)
         self.toolbar.resize_btn.clicked.connect(self.image_handler.resize_image)
         self.toolbar.resize_all_btn.clicked.connect(self.image_handler.resize_all_images)
         
         # Connect menu actions
-        self.open_action.triggered.connect(self.image_handler.select_files)
         self.save_selected_action.triggered.connect(self.image_handler.save_current)
         self.save_all_action.triggered.connect(self.image_handler.save_all)
         
@@ -149,7 +149,6 @@ class ImageResizerApp(QMainWindow):
         menubar.addMenu(file_menu)
         
         # Add File menu actions
-        self.open_action = file_menu.addAction('Open Images...')
         self.save_selected_action = file_menu.addAction('Save Selected')
         self.save_all_action = file_menu.addAction('Save All')
         

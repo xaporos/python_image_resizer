@@ -29,11 +29,30 @@ class Toolbar(QWidget):
         # Drawing tools group
         tools_group = QHBoxLayout()
         tools_group.setSpacing(5)
-        # Set no margins for the tools group
         tools_group.setContentsMargins(0, 0, 0, 0)
         
         # Common button size
         button_size = 28
+        
+        # Open Images button
+        self.open_btn = QPushButton("📂 Open")
+        self.open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1877F2;
+                color: white;
+                padding: 4px 15px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #1464D2;
+            }
+        """)
+        self.open_btn.setFixedHeight(button_size)
+        tools_group.addWidget(self.open_btn)
+        
+        # Add small spacing after Open button
+        tools_group.addSpacing(10)
         
         # Save button
         self.save_btn = QPushButton("⤓")
@@ -41,7 +60,7 @@ class Toolbar(QWidget):
         self.save_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.save_btn.setFixedSize(button_size, button_size)
         tools_group.addWidget(self.save_btn)
-
+        
         # Undo/Redo buttons
         self.undo_btn = QPushButton("↺")
         self.undo_btn.setFlat(True)
