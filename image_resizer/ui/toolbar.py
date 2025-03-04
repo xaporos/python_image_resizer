@@ -13,9 +13,14 @@ class Toolbar(QWidget):
         self.layout.setContentsMargins(10, 2, 10, 2)
         # Set fixed height for the toolbar
         self.setFixedHeight(40)
+        # Keep track of drawing tool buttons for easy access
+        self.drawing_tools = []
         self.setup_tools()
         self.setup_controls()
         self.connect_signals()
+        
+        # Initially disable drawing tools
+        self.set_drawing_tools_enabled(False)
         
     def connect_signals(self):
         """Connect all toolbar signals"""
@@ -92,10 +97,17 @@ class Toolbar(QWidget):
             btn = QPushButton(text)
             btn.setFlat(True)
             btn.setCheckable(True)
-            btn.setStyleSheet(TOOL_BUTTON_STYLE)
+            btn.setStyleSheet(TOOL_BUTTON_STYLE + """
+                QPushButton:disabled {
+                    color: #999;
+                    background: transparent;
+                }
+            """)
             btn.setFixedSize(button_size, button_size)
             tools_group.addWidget(btn)
             setattr(self, attr_name, btn)
+            # Add to drawing tools list for easy access
+            self.drawing_tools.append(btn)
         
         self.layout.addLayout(tools_group)
         
@@ -113,16 +125,14 @@ class Toolbar(QWidget):
         controls_group = QHBoxLayout()
         controls_group.setContentsMargins(0, 0, 0, 0)
         
-        # Size combo with modern style
-        size_layout = QHBoxLayout()
-        # size_label = QLabel("Size:")
-        # size_label.setStyleSheet("color: #666;")
-        # controls_group.addWidget(size_label)
+        # Add stretch at the beginning to push everything to the right
+        controls_group.addStretch()
         
+        # Size combo
         self.size_combo = QComboBox()
         self.size_combo.addItems(["Small", "Medium", "Large"])
         self.size_combo.setFixedWidth(100)
-        self.size_combo.setFixedHeight(28)  # Match button height
+        self.size_combo.setFixedHeight(28)
         self.size_combo.setStyleSheet("""
             QComboBox {
                 border: 1px solid #ddd;
@@ -172,13 +182,13 @@ class Toolbar(QWidget):
         
         controls_group.addSpacing(8)
         
-        # Quality slider container
+        # Quality slider container with fixed width
         slider_container = QWidget()
         slider_container.setFixedWidth(180)
         slider_container.setFixedHeight(28)
         slider_layout = QHBoxLayout(slider_container)
         slider_layout.setContentsMargins(0, 0, 0, 0)
-        slider_layout.setSpacing(5)
+        slider_layout.setSpacing(8)
         
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setMinimum(1)
@@ -220,7 +230,7 @@ class Toolbar(QWidget):
         controls_group.addWidget(slider_container)
         controls_group.addSpacing(8)
         
-        # Resize buttons with matching style to Open button
+        # Resize buttons with fixed width
         button_style = """
             QPushButton {
                 background-color: #1877F2;
@@ -238,16 +248,23 @@ class Toolbar(QWidget):
         """
         
         self.resize_btn = QPushButton("Resize")
-        self.resize_btn.setFixedHeight(28)
+        self.resize_btn.setFixedSize(80, 28)  # Fixed width and height
         self.resize_btn.setStyleSheet(button_style)
         controls_group.addWidget(self.resize_btn)
         
         self.resize_all_btn = QPushButton("Resize All")
-        self.resize_all_btn.setFixedHeight(28)
+        self.resize_all_btn.setFixedSize(90, 28)  # Fixed width and height
         self.resize_all_btn.setStyleSheet(button_style)
         controls_group.addWidget(self.resize_all_btn)
         
-        self.layout.addLayout(controls_group) 
+        self.layout.addLayout(controls_group)
+
+    def set_drawing_tools_enabled(self, enabled):
+        """Enable or disable all drawing tools"""
+        for btn in self.drawing_tools:
+            btn.setEnabled(enabled)
+            if not enabled:
+                btn.setChecked(False)
 
 class ToolBar(QToolBar):
     def __init__(self, parent=None):

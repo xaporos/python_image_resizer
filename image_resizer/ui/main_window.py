@@ -140,6 +140,9 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.undo_btn.setToolTip("Undo (Ctrl+Z)")
         self.toolbar.redo_btn.setToolTip("Redo (Ctrl+Y)")
         
+        # Connect image list selection with drawing tools state
+        self.image_list.currentItemChanged.connect(self.update_ui_state)
+
     def setup_menu(self):
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
@@ -167,6 +170,10 @@ class ImageResizerApp(QMainWindow):
         
     def set_tool(self, tool_name):
         """Set the current drawing tool"""
+        # Only allow tool selection if there's an image
+        if not self.image_handler.current_image:
+            return
+            
         self.tool_manager.set_tool(tool_name)
         
         # Update button states
@@ -245,3 +252,12 @@ class ImageResizerApp(QMainWindow):
         item.setSizeHint(widget.sizeHint())
         self.image_list.addItem(item)
         self.image_list.setItemWidget(item, widget) 
+
+    def update_ui_state(self, current, previous):
+        """Update UI elements based on current state"""
+        # Enable/disable drawing tools based on image selection
+        has_image = current is not None
+        self.toolbar.set_drawing_tools_enabled(has_image)
+        
+        # Call the original image selected handler
+        self.image_handler.image_selected(current, previous)
