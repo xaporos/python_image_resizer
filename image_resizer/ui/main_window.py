@@ -21,9 +21,6 @@ class ImageResizerApp(QMainWindow):
         # Apply main style
         self.setStyleSheet(MAIN_STYLE)
         
-        # Create menu bar
-        self.setup_menu()
-        
         # Create central widget and main layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -110,12 +107,9 @@ class ImageResizerApp(QMainWindow):
         # Connect toolbar buttons
         self.toolbar.open_btn.clicked.connect(self.image_handler.select_files)
         self.toolbar.save_btn.clicked.connect(self.image_handler.save_current)
+        self.toolbar.save_all_btn.clicked.connect(self.image_handler.save_all)
         self.toolbar.resize_btn.clicked.connect(self.image_handler.resize_image)
         self.toolbar.resize_all_btn.clicked.connect(self.image_handler.resize_all_images)
-        
-        # Connect menu actions
-        self.save_selected_action.triggered.connect(self.image_handler.save_current)
-        self.save_all_action.triggered.connect(self.image_handler.save_all)
         
         # Connect image list selection
         self.image_list.currentItemChanged.connect(self.image_handler.image_selected)
@@ -143,22 +137,6 @@ class ImageResizerApp(QMainWindow):
         # Connect image list selection with drawing tools state
         self.image_list.currentItemChanged.connect(self.update_ui_state)
 
-    def setup_menu(self):
-        menubar = QMenuBar(self)
-        self.setMenuBar(menubar)
-        
-        # Create File menu
-        file_menu = QMenu('&File', self)
-        menubar.addMenu(file_menu)
-        
-        # Add File menu actions
-        self.save_selected_action = file_menu.addAction('Save Selected')
-        self.save_all_action = file_menu.addAction('Save All')
-        
-        # Create Edit menu
-        edit_menu = QMenu('&Edit', self)
-        menubar.addMenu(edit_menu)
-        
     def select_files(self):
         pass  # We'll implement this later
         

@@ -31,13 +31,17 @@ class Toolbar(QWidget):
         self.quality_label.setText(f"{value}%")
         
     def setup_tools(self):
-        # Drawing tools group
-        tools_group = QHBoxLayout()
-        tools_group.setSpacing(5)
-        tools_group.setContentsMargins(0, 0, 0, 0)
+        # Main container for all tools
+        main_container = QWidget()
+        main_layout = QHBoxLayout(main_container)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Common button size
         button_size = 28
+        
+        # Left section with Open button
+        left_section = QHBoxLayout()
+        left_section.setSpacing(5)
         
         # Open Images button
         self.open_btn = QPushButton("📂 Open")
@@ -54,49 +58,84 @@ class Toolbar(QWidget):
             }
         """)
         self.open_btn.setFixedHeight(button_size)
-        tools_group.addWidget(self.open_btn)
+        left_section.addWidget(self.open_btn)
         
         # Add small spacing after Open button
-        tools_group.addSpacing(10)
+        left_section.addSpacing(12)
         
-        # Save button
+        # Save buttons
         self.save_btn = QPushButton("⤓")
         self.save_btn.setFlat(True)
         self.save_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.save_btn.setFixedSize(button_size, button_size)
-        tools_group.addWidget(self.save_btn)
+        self.save_btn.setToolTip("Save Selected")
+        left_section.addWidget(self.save_btn)
         
-        # Undo/Redo buttons
-        self.undo_btn = QPushButton("↺")
-        self.undo_btn.setFlat(True)
-        self.undo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
-        self.undo_btn.setFixedSize(button_size, button_size)
-        tools_group.addWidget(self.undo_btn)
+        self.save_all_btn = QPushButton("⤓⤓")  # Double arrow for save all
+        self.save_all_btn.setFlat(True)
+        self.save_all_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        self.save_all_btn.setFixedSize(button_size, button_size)
+        self.save_all_btn.setToolTip("Save All")
+        left_section.addWidget(self.save_all_btn)
         
-        self.redo_btn = QPushButton("↻")
-        self.redo_btn.setFlat(True)
-        self.redo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
-        self.redo_btn.setFixedSize(button_size, button_size)
-        tools_group.addWidget(self.redo_btn)
-
-        # Add spacing
-        tools_group.addSpacing(180)
-
+        main_layout.addLayout(left_section)
+        main_layout.addStretch(8)
+     
+        
+        # Center container for tools section
+        center_container = QWidget()
+        center_layout = QHBoxLayout(center_container)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(12)
+        
+        # Crop and pencil tools
+        self.crop_btn = QPushButton("▣")
+        self.crop_btn.setFlat(True)
+        self.crop_btn.setCheckable(True)
+        self.crop_btn.setStyleSheet(TOOL_BUTTON_STYLE + """
+            QPushButton:disabled {
+                color: #999;
+                background: transparent;
+            }
+        """)
+        self.crop_btn.setFixedSize(button_size, button_size)
+        center_layout.addWidget(self.crop_btn)
+        self.drawing_tools.append(self.crop_btn)
+        
+        self.pencil_btn = QPushButton("✎")
+        self.pencil_btn.setFlat(True)
+        self.pencil_btn.setCheckable(True)
+        self.pencil_btn.setStyleSheet(TOOL_BUTTON_STYLE + """
+            QPushButton:disabled {
+                color: #999;
+                background: transparent;
+            }
+        """)
+        self.pencil_btn.setFixedSize(button_size, button_size)
+        center_layout.addWidget(self.pencil_btn)
+        self.drawing_tools.append(self.pencil_btn)
+        
+        # Add vertical separator
+        separator1 = QWidget()
+        separator1.setFixedWidth(1)
+        separator1.setStyleSheet("background-color: #ddd;")
+        separator1.setFixedHeight(30)
+        center_layout.addWidget(separator1)
+        
         # Drawing tools with consistent size
         tool_buttons = [
-            ("▣", "crop_btn"),
-            ("✎", "pencil_btn"),
-            ("─", "line_btn"),
-            ("➔", "arrow_btn"),
-            ("○", "circle_btn"),
-            ("□", "rect_btn"),
-            ("T", "text_btn")
+            ("─", "line_btn", "Line"),
+            ("➔", "arrow_btn", "Arrow"),
+            ("○", "circle_btn", "Circle"),
+            ("□", "rect_btn", "Rectangle"),
+            ("T", "text_btn", "Text")
         ]
 
-        for text, attr_name in tool_buttons:
+        for text, attr_name, tooltip in tool_buttons:
             btn = QPushButton(text)
             btn.setFlat(True)
             btn.setCheckable(True)
+            btn.setToolTip(tooltip)
             btn.setStyleSheet(TOOL_BUTTON_STYLE + """
                 QPushButton:disabled {
                     color: #999;
@@ -104,22 +143,35 @@ class Toolbar(QWidget):
                 }
             """)
             btn.setFixedSize(button_size, button_size)
-            tools_group.addWidget(btn)
+            center_layout.addWidget(btn)
             setattr(self, attr_name, btn)
-            # Add to drawing tools list for easy access
             self.drawing_tools.append(btn)
         
-        self.layout.addLayout(tools_group)
-        
         # Add vertical separator
-        separator = QWidget()
-        separator.setFixedWidth(1)
-        separator.setStyleSheet("""
-            background-color: #ddd;
-            margin: 5px 15px;
-        """)
-        separator.setFixedHeight(30)  # Match toolbar height
-        self.layout.addWidget(separator)
+        separator2 = QWidget()
+        separator2.setFixedWidth(1)
+        separator2.setStyleSheet("background-color: #ddd;")
+        separator2.setFixedHeight(30)
+        center_layout.addWidget(separator2)
+        
+        # Add undo/redo buttons
+        self.undo_btn = QPushButton("↺")
+        self.undo_btn.setFlat(True)
+        self.undo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        self.undo_btn.setFixedSize(button_size, button_size)
+        center_layout.addWidget(self.undo_btn)
+        
+        self.redo_btn = QPushButton("↻")
+        self.redo_btn.setFlat(True)
+        self.redo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
+        self.redo_btn.setFixedSize(button_size, button_size)
+        center_layout.addWidget(self.redo_btn)
+        
+        # Add center container to main layout
+        main_layout.addWidget(center_container, 0, Qt.AlignCenter)
+        main_layout.addStretch(1)
+        
+        self.layout.addWidget(main_container)
 
     def setup_controls(self):
         controls_group = QHBoxLayout()
