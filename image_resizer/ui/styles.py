@@ -142,7 +142,7 @@ IMAGE_LIST_STYLE = """
                 margin: 2px 4px;
             }
             QListWidget::item:selected {
-                background-color: #f0f7ff;
+                background-color: #f5f5f5;
             }
             QListWidget::item:hover {
                 background-color: #f5f5f5;

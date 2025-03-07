@@ -64,7 +64,7 @@ class ImageResizerApp(QMainWindow):
         self.view.setStyleSheet("""
             QGraphicsView {
                 border: none;
-                background-color: white;
+                background-color: transparent;
             }
         """)
         

@@ -1,8 +1,14 @@
+
+import os
+
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QPushButton, 
                            QInputDialog, QLineEdit)
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QIcon
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DELETE_ICON_PATH = os.path.join(BASE_DIR, "assets", "delete.png")
+RENAME_ICON_PATH = os.path.join(BASE_DIR, "assets", "rename.png")
 class ImageListItemWidget(QWidget):
     renamed = pyqtSignal(str, str)  # old_name, new_name
     deleted = pyqtSignal(str)  # image_name
@@ -32,7 +38,8 @@ class ImageListItemWidget(QWidget):
         layout.addStretch()
         
         # Rename button
-        self.rename_btn = QPushButton("✎")
+        self.rename_btn = QPushButton()
+        self.rename_btn.setIcon(QIcon(RENAME_ICON_PATH))
         self.rename_btn.setFixedSize(28, 28)
         self.rename_btn.setToolTip("Rename")
         self.rename_btn.clicked.connect(self.rename_clicked)
@@ -52,7 +59,8 @@ class ImageListItemWidget(QWidget):
         layout.addWidget(self.rename_btn)
         
         # Delete button
-        self.delete_btn = QPushButton("🗑")
+        self.delete_btn = QPushButton()
+        self.delete_btn.setIcon(QIcon(DELETE_ICON_PATH))
         self.delete_btn.setFixedSize(28, 28)
         self.delete_btn.setToolTip("Delete")
         self.delete_btn.clicked.connect(self.delete_clicked)
