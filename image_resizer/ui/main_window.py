@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                            QShortcut)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QKeySequence
-from image_resizer.ui.styles import MAIN_STYLE
+from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
@@ -43,15 +43,32 @@ class ImageResizerApp(QMainWindow):
         # Create horizontal layout for list and preview
         content_layout = QHBoxLayout()
         
-        # Create image list
+        # Create image list with modern styling
         self.image_list = QListWidget()
         self.image_list.setMinimumWidth(280)
         self.image_list.setMaximumWidth(280)
+        self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
         content_layout.addWidget(self.image_list)
         
-        # Create preview area
+        # Create preview area with matching style
         preview_layout = QVBoxLayout()
-        preview_layout.addWidget(self.view)
+        
+        # Create a container for the view to apply styling
+        view_container = QWidget()
+        view_container.setStyleSheet(MAIN_WINDOW_STYLE)
+        view_layout = QVBoxLayout(view_container)
+        view_layout.setContentsMargins(5, 5, 5, 5)
+        view_layout.addWidget(self.view)
+        
+        # Style the graphics view
+        self.view.setStyleSheet("""
+            QGraphicsView {
+                border: none;
+                background-color: white;
+            }
+        """)
+        
+        preview_layout.addWidget(view_container)
         
         # Create bottom info bar with zoom
         bottom_layout = QHBoxLayout()
@@ -80,7 +97,8 @@ class ImageResizerApp(QMainWindow):
         
         # Add Fit button
         self.fit_button = QPushButton("Fit")
-        self.fit_button.setFixedWidth(40)
+        self.fit_button.setFixedWidth(80)
+        self.fit_button.setStyleSheet(BUTTON_STYLE)
         self.fit_button.clicked.connect(self.fit_to_view)
         
         bottom_layout.addWidget(zoom_label)
@@ -229,10 +247,24 @@ class ImageResizerApp(QMainWindow):
         widget.deleted.connect(self.image_handler.delete_image)
         item.setSizeHint(widget.sizeHint())
         self.image_list.addItem(item)
-        self.image_list.setItemWidget(item, widget) 
+        self.image_list.setItemWidget(item, widget)
+        # Initially set as not selected
+        widget.set_selected(False)
 
     def update_ui_state(self, current, previous):
         """Update UI elements based on current state"""
+        # Update previous item's selection state
+        if previous:
+            prev_widget = self.image_list.itemWidget(previous)
+            if prev_widget:
+                prev_widget.set_selected(False)
+                
+        # Update current item's selection state
+        if current:
+            curr_widget = self.image_list.itemWidget(current)
+            if curr_widget:
+                curr_widget.set_selected(True)
+        
         # Enable/disable drawing tools based on image selection
         has_image = current is not None
         self.toolbar.set_drawing_tools_enabled(has_image)

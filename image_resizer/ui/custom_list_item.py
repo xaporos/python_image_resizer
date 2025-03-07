@@ -13,71 +13,72 @@ class ImageListItemWidget(QWidget):
         self.setup_ui()
         
     def setup_ui(self):
-        layout = QHBoxLayout()
-        layout.setContentsMargins(5, 2, 5, 2)
-        layout.setSpacing(5)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
         
         # Image name label
         self.name_label = QLabel(self.image_name)
+        self.name_label.setMinimumWidth(150)
         self.name_label.setStyleSheet("""
             QLabel { 
                 color: #333333;
+                font-size: 13px;
                 padding: 2px;
             }
         """)
         layout.addWidget(self.name_label)
         
-        # Add stretch to push buttons to the right
         layout.addStretch()
         
-        # Rename button with pencil symbol ✎
+        # Rename button
         self.rename_btn = QPushButton("✎")
-        self.rename_btn.setFixedSize(24, 24)
+        self.rename_btn.setFixedSize(28, 28)
         self.rename_btn.setToolTip("Rename")
         self.rename_btn.clicked.connect(self.rename_clicked)
-        self.rename_btn.setVisible(False)  # Hide by default
         self.rename_btn.setStyleSheet("""
             QPushButton {
                 border: none;
                 background: transparent;
-                padding: 2px;
                 color: #666666;
                 font-size: 16px;
-                font-family: Arial;
+                padding: 4px;
             }
             QPushButton:hover {
-                background: #4CAF50;
+                background: #e8e8e8;
                 border-radius: 4px;
-                color: white;
             }
         """)
+        layout.addWidget(self.rename_btn)
         
-        # Delete button with trash symbol 🗑
+        # Delete button
         self.delete_btn = QPushButton("🗑")
-        self.delete_btn.setFixedSize(24, 24)
+        self.delete_btn.setFixedSize(28, 28)
         self.delete_btn.setToolTip("Delete")
         self.delete_btn.clicked.connect(self.delete_clicked)
         self.delete_btn.setStyleSheet("""
             QPushButton {
                 border: none;
                 background: transparent;
-                padding: 2px;
-                color: #ff4444;
+                color: #666666;
                 font-size: 16px;
-                font-family: Arial;
+                padding: 4px;
             }
             QPushButton:hover {
-                background: #F44336;
+                background: #ffebee;
+                color: #f44336;
                 border-radius: 4px;
-                color: white;
             }
         """)
-        
-        # Add buttons to layout
-        layout.addWidget(self.rename_btn)
         layout.addWidget(self.delete_btn)
         
-        # Set widget style
+        # Initially hide rename button, show delete button
+        self.rename_btn.setVisible(False)
+        self.delete_btn.setVisible(True)
+        
+        # Set fixed height for the widget
+        self.setFixedHeight(44)
+        
         self.setStyleSheet("""
             QWidget {
                 background: transparent;

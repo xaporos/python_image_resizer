@@ -1,7 +1,22 @@
+import os
 from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
-from image_resizer.ui.styles import TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
+from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SAVE_ICON_PATH = os.path.join(BASE_DIR, "assets", "save.png")
+SAVE_ALL_ICON_PATH = os.path.join(BASE_DIR, "assets", "save_all.png")
+OPEN_ICON_PATH = os.path.join(BASE_DIR, "assets", "open.png")
+CROP_ICON_PATH = os.path.join(BASE_DIR, "assets", "crop.png")
+PENCIL_ICON_PATH = os.path.join(BASE_DIR, "assets", "pencil.png")
+LINE_ICON_PATH = os.path.join(BASE_DIR, "assets", "line.png")
+ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
+CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
+RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
+TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
+UNDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "undo.png")
+REDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "redo.png")
 
 class Toolbar(QWidget):
     def __init__(self, parent=None):
@@ -10,7 +25,7 @@ class Toolbar(QWidget):
         self.layout = QHBoxLayout(self)
         self.layout.setSpacing(10)
         # Set smaller vertical margins for the toolbar
-        self.layout.setContentsMargins(10, 2, 10, 2)
+        self.layout.setContentsMargins(2, 0, 2, 0)
         # Set fixed height for the toolbar
         self.setFixedHeight(40)
         # Keep track of drawing tool buttons for easy access
@@ -34,44 +49,33 @@ class Toolbar(QWidget):
         # Main container for all tools
         main_container = QWidget()
         main_layout = QHBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(8, 0, 8, 0)
         
         # Common button size
-        button_size = 28
+        button_size = 36
         
         # Left section with Open button
         left_section = QHBoxLayout()
         left_section.setSpacing(5)
         
         # Open Images button
-        self.open_btn = QPushButton("📂 Open")
-        self.open_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1877F2;
-                color: white;
-                padding: 4px 15px;
-                border-radius: 4px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #1464D2;
-            }
-        """)
+        self.open_btn = QPushButton("")
+        self.open_btn.setIcon(QIcon(OPEN_ICON_PATH))
+        self.open_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.open_btn.setFixedHeight(button_size)
         left_section.addWidget(self.open_btn)
         
-        # Add small spacing after Open button
-        left_section.addSpacing(12)
-        
         # Save buttons
-        self.save_btn = QPushButton("⤓")
+        self.save_btn = QPushButton("")
+        self.save_btn.setIcon(QIcon(SAVE_ICON_PATH))
         self.save_btn.setFlat(True)
         self.save_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.save_btn.setFixedSize(button_size, button_size)
         self.save_btn.setToolTip("Save Selected")
         left_section.addWidget(self.save_btn)
         
-        self.save_all_btn = QPushButton("⤓⤓")  # Double arrow for save all
+        self.save_all_btn = QPushButton("")  # Double arrow for save all
+        self.save_all_btn.setIcon(QIcon(SAVE_ALL_ICON_PATH))
         self.save_all_btn.setFlat(True)
         self.save_all_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.save_all_btn.setFixedSize(button_size, button_size)
@@ -89,28 +93,20 @@ class Toolbar(QWidget):
         center_layout.setSpacing(12)
         
         # Crop and pencil tools
-        self.crop_btn = QPushButton("▣")
+        self.crop_btn = QPushButton("")
+        self.crop_btn.setIcon(QIcon(CROP_ICON_PATH))
         self.crop_btn.setFlat(True)
         self.crop_btn.setCheckable(True)
-        self.crop_btn.setStyleSheet(TOOL_BUTTON_STYLE + """
-            QPushButton:disabled {
-                color: #999;
-                background: transparent;
-            }
-        """)
+        self.crop_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.crop_btn.setFixedSize(button_size, button_size)
         center_layout.addWidget(self.crop_btn)
         self.drawing_tools.append(self.crop_btn)
         
-        self.pencil_btn = QPushButton("✎")
+        self.pencil_btn = QPushButton("")
+        self.pencil_btn.setIcon(QIcon(PENCIL_ICON_PATH))
         self.pencil_btn.setFlat(True)
         self.pencil_btn.setCheckable(True)
-        self.pencil_btn.setStyleSheet(TOOL_BUTTON_STYLE + """
-            QPushButton:disabled {
-                color: #999;
-                background: transparent;
-            }
-        """)
+        self.pencil_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.pencil_btn.setFixedSize(button_size, button_size)
         center_layout.addWidget(self.pencil_btn)
         self.drawing_tools.append(self.pencil_btn)
@@ -124,24 +120,20 @@ class Toolbar(QWidget):
         
         # Drawing tools with consistent size
         tool_buttons = [
-            ("─", "line_btn", "Line"),
-            ("➔", "arrow_btn", "Arrow"),
-            ("○", "circle_btn", "Circle"),
-            ("□", "rect_btn", "Rectangle"),
-            ("T", "text_btn", "Text")
+            (LINE_ICON_PATH, "line_btn", "Line"),
+            (ARROW_ICON_PATH, "arrow_btn", "Arrow"),
+            (CIRCLE_ICON_PATH, "circle_btn", "Circle"),
+            (RECT_ICON_PATH, "rect_btn", "Rectangle"),
+            (TEXT_ICON_PATH, "text_btn", "Text")
         ]
 
-        for text, attr_name, tooltip in tool_buttons:
-            btn = QPushButton(text)
+        for icon, attr_name, tooltip in tool_buttons:
+            btn = QPushButton("")
+            btn.setIcon(QIcon(icon))
             btn.setFlat(True)
             btn.setCheckable(True)
             btn.setToolTip(tooltip)
-            btn.setStyleSheet(TOOL_BUTTON_STYLE + """
-                QPushButton:disabled {
-                    color: #999;
-                    background: transparent;
-                }
-            """)
+            btn.setStyleSheet(TOOL_BUTTON_STYLE)
             btn.setFixedSize(button_size, button_size)
             center_layout.addWidget(btn)
             setattr(self, attr_name, btn)
@@ -155,13 +147,15 @@ class Toolbar(QWidget):
         center_layout.addWidget(separator2)
         
         # Add undo/redo buttons
-        self.undo_btn = QPushButton("↺")
+        self.undo_btn = QPushButton("")
+        self.undo_btn.setIcon(QIcon(UNDO_ICON_PATH))
         self.undo_btn.setFlat(True)
         self.undo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.undo_btn.setFixedSize(button_size, button_size)
         center_layout.addWidget(self.undo_btn)
         
-        self.redo_btn = QPushButton("↻")
+        self.redo_btn = QPushButton("")
+        self.redo_btn.setIcon(QIcon(REDO_ICON_PATH))
         self.redo_btn.setFlat(True)
         self.redo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.redo_btn.setFixedSize(button_size, button_size)
@@ -185,51 +179,7 @@ class Toolbar(QWidget):
         self.size_combo.addItems(["Small", "Medium", "Large"])
         self.size_combo.setFixedWidth(100)
         self.size_combo.setFixedHeight(28)
-        self.size_combo.setStyleSheet("""
-            QComboBox {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 10px;
-                background: white;
-                color: #333;
-                font-weight: 500;
-            }
-            QComboBox:hover {
-                border-color: #1877F2;
-            }
-            QComboBox:focus {
-                border-color: #1877F2;
-                outline: none;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                color: #666;
-                font-size: 12px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                margin-top: 3px;
-                padding: 5px;
-                min-width: 150px;  /* Make dropdown wider */
-            }
-            QComboBox QAbstractItemView::item {
-                padding: 8px 12px;
-                min-height: 24px;
-            }
-            QComboBox QAbstractItemView::item:hover {
-                background-color: #f0f7ff;
-                color: #1877F2;
-            }
-            QComboBox QAbstractItemView::item:selected {
-                background-color: #1877F2;
-                color: white;
-            }
-        """)
+        self.size_combo.setStyleSheet(COMBO_BOX_STYLE)
         controls_group.addWidget(self.size_combo)
         
         controls_group.addSpacing(8)
@@ -240,7 +190,6 @@ class Toolbar(QWidget):
         slider_container.setFixedHeight(28)
         slider_layout = QHBoxLayout(slider_container)
         slider_layout.setContentsMargins(0, 0, 0, 0)
-        slider_layout.setSpacing(8)
         
         self.quality_slider = QSlider(Qt.Horizontal)
         self.quality_slider.setMinimum(1)
@@ -248,29 +197,7 @@ class Toolbar(QWidget):
         self.quality_slider.setValue(80)
         self.quality_slider.setFixedWidth(120)
         self.quality_slider.setFixedHeight(16)
-        self.quality_slider.setStyleSheet("""
-            QSlider {
-                margin: 0;
-                padding: 0;
-            }
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: #ddd;
-                margin: 6px 0;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                background: #1877F2;
-                border: none;
-                width: 16px;
-                height: 16px;
-                margin: -6px 0;
-                border-radius: 8px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #1464D2;
-            }
-        """)
+        self.quality_slider.setStyleSheet(SLIDER_STYLE)
         
         self.quality_label = QLabel("80%")
         self.quality_label.setFixedHeight(16)
@@ -280,33 +207,15 @@ class Toolbar(QWidget):
         slider_layout.addWidget(self.quality_label, 0, Qt.AlignVCenter)
         
         controls_group.addWidget(slider_container)
-        controls_group.addSpacing(8)
-        
-        # Resize buttons with fixed width
-        button_style = """
-            QPushButton {
-                background-color: #1877F2;
-                color: white;
-                padding: 4px 15px;
-                border-radius: 4px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #1464D2;
-            }
-            QPushButton:disabled {
-                background-color: #ccc;
-            }
-        """
         
         self.resize_btn = QPushButton("Resize")
         self.resize_btn.setFixedSize(80, 28)  # Fixed width and height
-        self.resize_btn.setStyleSheet(button_style)
+        self.resize_btn.setStyleSheet(BUTTON_STYLE)
         controls_group.addWidget(self.resize_btn)
         
         self.resize_all_btn = QPushButton("Resize All")
         self.resize_all_btn.setFixedSize(90, 28)  # Fixed width and height
-        self.resize_all_btn.setStyleSheet(button_style)
+        self.resize_all_btn.setStyleSheet(BUTTON_STYLE)
         controls_group.addWidget(self.resize_all_btn)
         
         self.layout.addLayout(controls_group)
@@ -317,26 +226,3 @@ class Toolbar(QWidget):
             btn.setEnabled(enabled)
             if not enabled:
                 btn.setChecked(False)
-
-class ToolBar(QToolBar):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent = parent
-        self.setup_ui()
-
-    def setup_ui(self):
-        # Arrow tool
-        self.arrow_btn = QPushButton()
-        self.arrow_btn.setIcon(QIcon("image_resizer/assets/arrow.png"))
-        self.arrow_btn.setCheckable(True)
-        self.arrow_btn.clicked.connect(lambda: self.parent.set_tool('arrow'))
-        self.addWidget(self.arrow_btn)
-
-        # Circle tool
-        self.circle_btn = QPushButton()
-        self.circle_btn.setIcon(QIcon("image_resizer/assets/circle.png"))
-        self.circle_btn.setCheckable(True)
-        self.circle_btn.clicked.connect(lambda: self.parent.set_tool('circle'))
-        self.addWidget(self.circle_btn)
-
-        # Other tools... 
