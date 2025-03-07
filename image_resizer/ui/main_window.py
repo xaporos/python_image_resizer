@@ -48,6 +48,9 @@ class ImageResizerApp(QMainWindow):
         self.image_list.setMinimumWidth(280)
         self.image_list.setMaximumWidth(280)
         self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
+        # Add selection mode and behavior settings
+        self.image_list.setSelectionMode(QListWidget.SingleSelection)
+        self.image_list.setSelectionBehavior(QListWidget.SelectItems)
         content_layout.addWidget(self.image_list)
         
         # Create preview area with matching style
@@ -130,7 +133,8 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.resize_all_btn.clicked.connect(self.image_handler.resize_all_images)
         
         # Connect image list selection
-        self.image_list.currentItemChanged.connect(self.image_handler.image_selected)
+        self.image_list.itemClicked.connect(self.handle_item_selection)
+        self.image_list.currentItemChanged.connect(self.update_ui_state)
         
         # Connect tool buttons
         self.toolbar.crop_btn.clicked.connect(lambda: self.set_tool('crop'))
@@ -151,9 +155,6 @@ class ImageResizerApp(QMainWindow):
         # Add tooltips with shortcuts for undo/redo buttons
         self.toolbar.undo_btn.setToolTip("Undo (Ctrl+Z)")
         self.toolbar.redo_btn.setToolTip("Redo (Ctrl+Y)")
-        
-        # Connect image list selection with drawing tools state
-        self.image_list.currentItemChanged.connect(self.update_ui_state)
 
     def select_files(self):
         pass  # We'll implement this later
@@ -271,3 +272,19 @@ class ImageResizerApp(QMainWindow):
         
         # Call the original image selected handler
         self.image_handler.image_selected(current, previous)
+
+    def handle_item_selection(self, item):
+        """Handle explicit item selection"""
+        if item:
+            self.image_list.setCurrentItem(item)
+            widget = self.image_list.itemWidget(item)
+            if widget:
+                # Ensure proper selection state
+                for i in range(self.image_list.count()):
+                    curr_item = self.image_list.item(i)
+                    curr_widget = self.image_list.itemWidget(curr_item)
+                    if curr_widget:
+                        curr_widget.set_selected(curr_item == item)
+                
+                # Update image display
+                self.image_handler.image_selected(item, self.image_list.currentItem())
