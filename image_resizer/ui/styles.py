@@ -116,6 +116,12 @@ SLIDER_STYLE = """
                 margin: 6px 0;
                 border-radius: 2px;
             }
+            QSlider::sub-page:horizontal {
+                background: #242424;
+                margin: 6px 0;
+                height: 4px;
+                border-radius: 2px;
+            }
             QSlider::handle:horizontal {
                 background: #242424;
                 border: none;
@@ -132,7 +138,7 @@ SLIDER_STYLE = """
 IMAGE_LIST_STYLE = """
             QListWidget {
                 background-color: white;
-                border: 1px solid #242424;
+                border: 0.5px solid #50242424;
                 border-radius: 8px;
                 padding: 4px;
             }
@@ -152,7 +158,7 @@ IMAGE_LIST_STYLE = """
 MAIN_WINDOW_STYLE = """
             QWidget {
                 background-color: white;
-                border: 1px solid #242424;
+                border: 1px solid #50242424;
                 border-radius: 8px;
             }
         """

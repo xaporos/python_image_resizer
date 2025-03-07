@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                            QShortcut)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QKeySequence
-from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE
+from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
@@ -73,9 +73,20 @@ class ImageResizerApp(QMainWindow):
         
         preview_layout.addWidget(view_container)
         
-        # Create bottom info bar with zoom
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setContentsMargins(10, 5, 10, 5)
+        # Create bottom info bar container with border
+        bottom_container = QWidget()
+        bottom_container.setStyleSheet("""
+            QWidget#bottomContainer {
+                border: 1px solid #50242424;
+                border-radius: 8px;
+                background-color: white;
+            }
+        """)
+        bottom_container.setObjectName("bottomContainer")  # Set object name for specific styling
+        bottom_container.setFixedHeight(50)
+        
+        bottom_layout = QHBoxLayout(bottom_container)
+        bottom_layout.setContentsMargins(20, 5, 20, 5)
         
         # Info labels
         self.size_label = QLabel("Size: --")
@@ -91,6 +102,7 @@ class ImageResizerApp(QMainWindow):
         # Zoom controls on right side
         zoom_label = QLabel("Zoom:")
         self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setStyleSheet(SLIDER_STYLE)
         self.zoom_slider.setMinimum(10)
         self.zoom_slider.setMaximum(400)
         self.zoom_slider.setValue(100)
@@ -109,8 +121,8 @@ class ImageResizerApp(QMainWindow):
         bottom_layout.addWidget(self.zoom_value_label)
         bottom_layout.addWidget(self.fit_button)
         
-        # Add bottom layout to preview layout
-        preview_layout.addLayout(bottom_layout)
+        # Add bottom container to preview layout
+        preview_layout.addWidget(bottom_container)
         
         # Add preview layout to content layout
         content_layout.addLayout(preview_layout)
