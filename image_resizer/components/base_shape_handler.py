@@ -8,7 +8,7 @@ class BaseShapeHandler:
         self.app = app
         self.selected_shape = None
         self.resize_handles = []
-        self.handle_size = 8
+        self.handle_size = 32  # Increased from 8 to 32 for much larger handles
         self.resizing = False
         self.moving = False
         self.resize_handle = None
@@ -44,24 +44,20 @@ class BaseShapeHandler:
 
     def select_shape(self, shape):
         """Select a shape and create its resize handles"""
-        # Clear previous selection
-        if self.selected_shape and self.selected_shape != shape:
-            self.finalize_shape()
+        if not shape or not shape.scene():
+            return
             
-        # Set new shape
+        # Clear any previous selection
+        self.clear_selection()
+        
+        # Set new selection
         self.selected_shape = shape
-        if shape and shape.scene():  # Check if shape still exists
-            shape.setZValue(1)
-            
-            # Create resize handles
-            self.resize_handles = self.create_resize_handles(shape)
-            
-            # Set proper z-ordering
-            for handle in self.resize_handles:
-                handle.setZValue(3)
+        
+        # Create new handles
+        self.create_resize_handles(shape)
 
     def finalize_shape(self):
-        """Finalize the current shape by drawing it permanently on the pixmap"""
+        """Finalize the current shape and deselect the tool"""
         try:
             if not self.selected_shape or not self.selected_shape.scene():
                 return
@@ -88,6 +84,7 @@ class BaseShapeHandler:
                 painter.setPen(pen)
                 painter.setRenderHint(QPainter.Antialiasing)
                 
+                # Draw the shape on the pixmap
                 if isinstance(shape, QGraphicsLineItem):
                     line = shape.line()
                     line.translate(shape.pos())
@@ -120,6 +117,17 @@ class BaseShapeHandler:
                 # Update scene
                 self.app.scene.clear()
                 self.app.scene.addPixmap(pixmap)
+
+                # Deselect the current tool
+                if hasattr(self.app, 'tool_manager'):
+                    self.app.tool_manager.set_tool(None)
+                    # Uncheck all tool buttons
+                    if hasattr(self.app.toolbar, 'arrow_btn'):
+                        self.app.toolbar.arrow_btn.setChecked(False)
+                    if hasattr(self.app.toolbar, 'circle_btn'):
+                        self.app.toolbar.circle_btn.setChecked(False)
+                    if hasattr(self.app.toolbar, 'rect_btn'):
+                        self.app.toolbar.rect_btn.setChecked(False)
         except:
             pass
         finally:
@@ -154,62 +162,56 @@ class BaseShapeHandler:
 
             return new_rect.normalized()
 
-    def create_resize_handles(self, item):
+    def create_resize_handles(self, shape):
         """Create resize handles for a shape"""
-        handles = []
+        # Clear any existing handles
+        for handle in self.resize_handles:
+            if handle.scene():
+                self.app.scene.removeItem(handle)
+        self.resize_handles = []
         
-        if isinstance(item, QGraphicsLineItem):
-            # For arrow/line, only create handles at start and end points
-            line = item.line()
+        # Get positions based on item type
+        positions = []
+        if isinstance(shape, QGraphicsLineItem):
+            line = shape.line()
             positions = [
-                (line.p1(), Qt.SizeAllCursor),
-                (line.p2(), Qt.SizeAllCursor)
+                shape.mapToScene(line.p1()),
+                shape.mapToScene(line.p2())
             ]
         else:
-            # For rectangle and circle, create handles at corners and edges
-            rect = item.rect()
+            rect = shape.rect()
             positions = [
-                (rect.topLeft(), Qt.SizeFDiagCursor),
-                (rect.topRight(), Qt.SizeBDiagCursor),
-                (rect.bottomLeft(), Qt.SizeBDiagCursor),
-                (rect.bottomRight(), Qt.SizeFDiagCursor)
+                shape.mapToScene(rect.topLeft()),
+                shape.mapToScene(rect.topRight()),
+                shape.mapToScene(rect.bottomLeft()),
+                shape.mapToScene(rect.bottomRight())
             ]
         
         # Create handles at the calculated positions
-        for pos, cursor in positions:
+        for pos in positions:
             handle = QGraphicsRectItem()
-            scene_pos = item.mapToScene(pos)
-            handle.setRect(
-                scene_pos.x() - self.handle_size/2,
-                scene_pos.y() - self.handle_size/2,
-                self.handle_size,
-                self.handle_size
-            )
-            handle.setPen(QPen(Qt.white))
-            handle.setBrush(QBrush(Qt.black))
-            handle.setCursor(cursor)
-            handle.setZValue(2)
+            half_size = self.handle_size / 2
+            handle.setRect(-half_size, -half_size, self.handle_size, self.handle_size)
+            handle.setPen(QPen(Qt.black, 2))  # Thicker border
+            handle.setBrush(QBrush(Qt.white))
+            handle.setPos(pos)
+            handle.setZValue(5)  # Above other items
             self.app.scene.addItem(handle)
-            handles.append(handle)
-        
-        return handles
+            self.resize_handles.append(handle)
 
     def update_resize_handles(self):
         """Update position of resize handles"""
         if not self.selected_shape:
             return
 
-        # Block signals temporarily to prevent flickering
-        self.app.scene.blockSignals(True)
-
         if isinstance(self.selected_shape, QGraphicsLineItem):
-            # Get line endpoints in scene coordinates
+            # For lines, update handle positions to line endpoints
             line = self.selected_shape.line()
-            positions = [
-                self.selected_shape.mapToScene(line.p1()),
-                self.selected_shape.mapToScene(line.p2())
-            ]
+            p1 = self.selected_shape.mapToScene(line.p1())
+            p2 = self.selected_shape.mapToScene(line.p2())
+            positions = [p1, p2]
         else:
+            # For rectangles and circles, update handle positions to corners
             rect = self.selected_shape.rect()
             positions = [
                 self.selected_shape.mapToScene(rect.topLeft()),
@@ -218,16 +220,9 @@ class BaseShapeHandler:
                 self.selected_shape.mapToScene(rect.bottomRight())
             ]
 
+        # Update each handle position
         for handle, pos in zip(self.resize_handles, positions):
-            handle.setRect(
-                pos.x() - self.handle_size/2,
-                pos.y() - self.handle_size/2,
-                self.handle_size,
-                self.handle_size
-            )
-
-        self.app.scene.blockSignals(False)
-        self.app.scene.update()
+            handle.setPos(pos)  # Use setPos instead of setRect for proper positioning
 
     def clear_handles(self):
         """Clear just the resize handles"""
@@ -238,32 +233,21 @@ class BaseShapeHandler:
 
     def clear_selection(self):
         """Clear current selection and handles"""
-        try:
-            # Clear handles first
-            self.clear_handles()
-            
-            # Clear selected shape if it still exists
-            if self.selected_shape and self.selected_shape.scene():
-                self.finalize_shape()  # Try to finalize the shape before clearing
-            
-            # Reset all states
-            self.selected_shape = None
-            self.resizing = False
-            self.moving = False
-            self.resize_handle = None
-            self.start_pos = None
-            self.initial_shape_pos = None
-            self.initial_geometry = None
-        except:
-            # If any error occurs, just reset everything
-            self.resize_handles = []
-            self.selected_shape = None
-            self.resizing = False
-            self.moving = False
-            self.resize_handle = None
-            self.start_pos = None
-            self.initial_shape_pos = None
-            self.initial_geometry = None
+        # Remove all handles
+        for handle in self.resize_handles:
+            if handle.scene():
+                self.app.scene.removeItem(handle)
+        self.resize_handles.clear()
+        
+        # Reset state
+        self.selected_shape = None
+        self.resizing = False
+        self.moving = False
+        self.resize_handle = None
+        self.start_pos = None
+        self.original_rect = None
+        self.initial_shape_pos = None
+        self.initial_geometry = None
 
     def handle_mouse_press(self, event, pos):
         """Handle mouse press for shape resizing"""
@@ -291,17 +275,13 @@ class BaseShapeHandler:
             self.initial_shape_pos = self.selected_shape.pos()
             return True
 
-        # If clicked outside, finalize the shape and deactivate tool
+        # If clicked outside, finalize the shape and deselect the tool
         self.finalize_shape()
-        if self.app.tool_manager.current_tool:
+        if hasattr(self.app, 'tool_manager') and self.app.tool_manager.current_tool:
             self.app.tool_manager.set_tool(None)
-            # Uncheck the appropriate tool button
-            if hasattr(self.app.toolbar, 'arrow_btn'):
-                self.app.toolbar.arrow_btn.setChecked(False)
-            if hasattr(self.app.toolbar, 'circle_btn'):
-                self.app.toolbar.circle_btn.setChecked(False)
-            if hasattr(self.app.toolbar, 'rect_btn'):
-                self.app.toolbar.rect_btn.setChecked(False)
+            # Uncheck the tool button
+            if hasattr(self.app.toolbar, f"{self.app.tool_manager.current_tool.__class__.__name__.lower()}_btn"):
+                getattr(self.app.toolbar, f"{self.app.tool_manager.current_tool.__class__.__name__.lower()}_btn").setChecked(False)
         return False
 
     def handle_mouse_move(self, event, pos):
@@ -373,3 +353,10 @@ class BaseShapeHandler:
         else:
             if isinstance(new_geometry, QRectF):
                 self.selected_shape.setRect(new_geometry) 
+
+    def update_handle_size(self, size):
+        """Update the size of resize handles"""
+        for handle in self.resize_handles:
+            # Handles are typically centered at (0,0) with width/height
+            half_size = size / 2
+            handle.setRect(-half_size, -half_size, size, size) 

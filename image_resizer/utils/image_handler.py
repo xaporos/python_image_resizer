@@ -132,6 +132,27 @@ class ImageHandler:
                     self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
                     self.update_info_label()
                 
+            # Adjust line width for drawing tools based on image size
+            if hasattr(self.parent, 'tool_manager'):
+                # Get image dimensions
+                width, height = self.current_dimensions.get(file_path, (pixmap.width(), pixmap.height()))
+                
+                # Calculate a scale factor based on image diagonal
+                diagonal = (width**2 + height**2)**0.5
+                base_diagonal = 1500.0  # Base size for scaling
+                scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
+                
+                # Set line width for each tool - use a larger base width of 3
+                for tool_name, tool in self.parent.tool_manager.tools.items():
+                    if hasattr(tool, 'line_width'):
+                        # Scale from a base width of 3 for thicker lines
+                        tool.line_width = 3 * scale_factor
+                
+                # Also increase the handle size in each tool's shape handler
+                if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
+                    # Make handles larger (8 is the default size)
+                    tool.shape_handler.handle_size = max(8, int(12 * scale_factor))
+        
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
 
@@ -261,67 +282,66 @@ class ImageHandler:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
 
     def image_selected(self, current, previous):
-        """Handle image selection from the list"""
-        if previous:
-            # Hide rename button for previously selected item
-            prev_widget = self.parent.image_list.itemWidget(previous)
-            if prev_widget:
-                prev_widget.set_selected(False)
+        """Handle image selection change"""
+        if not current:
+            return
         
-        if current:
-            # Show rename button for newly selected item
-            curr_widget = self.parent.image_list.itemWidget(current)
-            if curr_widget:
-                curr_widget.set_selected(True)
+        # Get file path from item
+        file_path = self.get_file_path_from_item(current)
+        if not file_path:
+            return
+        
+        # Load the image into the scene
+        if file_path in self.edited_images:
+            # Use edited version
+            pixmap = self.edited_images[file_path]
+        else:
+            # Load original image
+            pixmap = QPixmap(file_path)
+        
+        if pixmap and not pixmap.isNull():
+            # Update the scene
+            self.parent.scene.clear()
+            self.parent.scene.addPixmap(pixmap)
+            self.parent.view.setSceneRect(QRectF(pixmap.rect()))
+            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
             
-            # Finalize any active drawing operations
-            if hasattr(self.parent, 'tool_manager') and self.parent.tool_manager.current_tool:
-                self.parent.tool_manager.current_tool.deactivate()
-                if hasattr(self.parent.tool_manager.current_tool, 'shape_handler'):
-                    self.parent.tool_manager.current_tool.shape_handler.finalize_shape()
-
-            # Save current canvas state and history if there is one
-            if previous and self.parent.view.scene().items():
-                prev_path = self.get_file_path_from_item(previous)
-                if prev_path:
-                    # Get the pixmap item (should be the last item in the scene)
-                    for item in self.parent.view.scene().items():
-                        if isinstance(item, QGraphicsPixmapItem):
-                            # Save current state
-                            self.edited_images[prev_path] = item.pixmap().copy()
-                            # Save current history and dimensions
-                            self.image_histories[prev_path] = self.history.copy()
-                            self.image_redo_stacks[prev_path] = self.redo_stack.copy()
-                            break
-    
-            file_path = self.get_file_path_from_item(current)
-            if file_path in self.images:
-                self.current_image = self.images[file_path]
+            # Update current image reference
+            self.current_image = self.images.get(file_path)
+        
+        # Adjust line width for drawing tools based on image size
+        if hasattr(self.parent, 'tool_manager'):
+            # Get image dimensions
+            width, height = self.current_dimensions.get(file_path, (pixmap.width(), pixmap.height()))
+            
+            # Calculate a scale factor based on image diagonal
+            diagonal = (width**2 + height**2)**0.5
+            base_diagonal = 1500.0  # Base size for scaling
+            scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
+            
+            # Set line width for each tool - use a larger base width of 3
+            for tool_name, tool in self.parent.tool_manager.tools.items():
+                if hasattr(tool, 'line_width'):
+                    # Scale from a base width of 3 for thicker lines
+                    tool.line_width = 3 * scale_factor
                 
-                # Reset zoom to 100%
-                self.parent.zoom_slider.setValue(100)
-                self.parent.zoom_value_label.setText("100%")
-                self.parent.view.resetTransform()
-                
-                # Restore history for the current image
-                self.history = self.image_histories.get(file_path, [])
-                self.redo_stack = self.image_redo_stacks.get(file_path, [])
-                
-                # Check if we have an edited version first
-                if file_path in self.edited_images:
-                    # Use edited dimensions and update preview
-                    pixmap = self.edited_images[file_path]
-                    self.current_dimensions[file_path] = (pixmap.width(), pixmap.height())
-                    self.update_preview_with_edited(file_path)
-                else:
-                    # Use original dimensions if no edited version
-                    self.current_dimensions[file_path] = self.original_dimensions.get(file_path, self.current_image.size)
-                    self.file_sizes[file_path] = os.path.getsize(file_path) / (1024 * 1024)
-                    self.update_preview_and_info(file_path)
-                
-                # Update undo/redo button states
-                self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
-                self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0)
+                # Also increase the handle size in each tool's shape handler
+                if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
+                    # Make handles larger (8 is the default size)
+                    tool.shape_handler.handle_size = max(8, int(12 * scale_factor))
+        
+        # Update info labels with correct dimensions and file size
+        if file_path in self.current_dimensions:
+            width, height = self.current_dimensions[file_path]
+            self.parent.size_label.setText(f"Size: {width} × {height}px")
+            
+            # Use actual file size from disk for unedited images
+            if file_path not in self.edited_images:
+                file_size = os.path.getsize(file_path) / (1024 * 1024)
+            else:
+                file_size = self.edited_file_sizes.get(file_path, 0)
+            
+            self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
 
     def update_preview_and_info(self, file_path):
         """Update the preview area and info labels with current image"""

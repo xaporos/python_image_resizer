@@ -7,6 +7,7 @@ class BaseTool:
         self.last_point = None
 
     def activate(self):
+        # Add this method back
         pass
 
     def deactivate(self):
@@ -20,4 +21,15 @@ class BaseTool:
         pass
 
     def mouse_release(self, event):
-        pass 
+        """Base mouse release handler that deselects the tool"""
+        # Deselect the tool after use
+        if hasattr(self.app, 'tool_manager'):
+            self.app.tool_manager.set_tool(None)
+            
+            # Uncheck all tool buttons
+            if hasattr(self.app.toolbar, 'arrow_btn'):
+                self.app.toolbar.arrow_btn.setChecked(False)
+            if hasattr(self.app.toolbar, 'circle_btn'):
+                self.app.toolbar.circle_btn.setChecked(False)
+            if hasattr(self.app.toolbar, 'rect_btn'):
+                self.app.toolbar.rect_btn.setChecked(False)

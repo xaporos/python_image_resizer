@@ -97,9 +97,10 @@ class ShapeHandler:
         if self.resizing and self.resize_handle:
             handle_index = self.resize_handles.index(self.resize_handle)
             
-            if isinstance(self.selected_shape, ArrowShape):
+            if (isinstance(self.selected_shape, QGraphicsLineItem) and 
+                self.selected_shape.data(0) == "arrow"):
                 # Get the arrow's line
-                line = self.selected_shape.line_item.line()
+                line = self.selected_shape.line()
                 
                 # Update the appropriate end of the arrow
                 if handle_index == 0:  # Start point
