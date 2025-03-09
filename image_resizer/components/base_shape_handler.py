@@ -8,7 +8,7 @@ class BaseShapeHandler:
         self.app = app
         self.selected_shape = None
         self.resize_handles = []
-        self.handle_size = 32  # Increased from 8 to 32 for much larger handles
+        self.handle_size = 12  # Reduced from 24 to 12 for smaller handles
         self.resizing = False
         self.moving = False
         self.resize_handle = None
@@ -162,7 +162,7 @@ class BaseShapeHandler:
 
             return new_rect.normalized()
 
-    def create_resize_handles(self, shape):
+    def create_resize_handles(self, item):
         """Create resize handles for a shape"""
         # Clear any existing handles
         for handle in self.resize_handles:
@@ -170,32 +170,45 @@ class BaseShapeHandler:
                 self.app.scene.removeItem(handle)
         self.resize_handles = []
         
-        # Get positions based on item type
+        # Get both view and image scales
+        view_scale = self.app.view.transform().m11()
+        
+        # Get image scale by comparing scene rect to view rect
+        scene_rect = self.app.scene.sceneRect()
+        view_rect = self.app.view.rect()
+        image_scale = min(view_rect.width() / scene_rect.width(),
+                         view_rect.height() / scene_rect.height())
+        
+        # Calculate size considering both scales
+        actual_size = self.handle_size * (image_scale / view_scale)
+        
+        # Ensure size stays within reasonable bounds
+        actual_size = min(max(actual_size, self.handle_size/2), self.handle_size*2)
+        
         positions = []
-        if isinstance(shape, QGraphicsLineItem):
-            line = shape.line()
+        if isinstance(item, QGraphicsLineItem):
+            line = item.line()
             positions = [
-                shape.mapToScene(line.p1()),
-                shape.mapToScene(line.p2())
+                item.mapToScene(line.p1()),
+                item.mapToScene(line.p2())
             ]
         else:
-            rect = shape.rect()
+            rect = item.rect()
             positions = [
-                shape.mapToScene(rect.topLeft()),
-                shape.mapToScene(rect.topRight()),
-                shape.mapToScene(rect.bottomLeft()),
-                shape.mapToScene(rect.bottomRight())
+                item.mapToScene(rect.topLeft()),
+                item.mapToScene(rect.topRight()),
+                item.mapToScene(rect.bottomLeft()),
+                item.mapToScene(rect.bottomRight())
             ]
         
-        # Create handles at the calculated positions
         for pos in positions:
             handle = QGraphicsRectItem()
-            half_size = self.handle_size / 2
-            handle.setRect(-half_size, -half_size, self.handle_size, self.handle_size)
-            handle.setPen(QPen(Qt.black, 2))  # Thicker border
+            half_size = actual_size / 2
+            handle.setRect(-half_size, -half_size, actual_size, actual_size)
+            handle.setPen(QPen(Qt.black, 2))
             handle.setBrush(QBrush(Qt.white))
             handle.setPos(pos)
-            handle.setZValue(5)  # Above other items
+            handle.setZValue(5)
             self.app.scene.addItem(handle)
             self.resize_handles.append(handle)
 
@@ -204,14 +217,27 @@ class BaseShapeHandler:
         if not self.selected_shape:
             return
 
+        # Get both view and image scales
+        view_scale = self.app.view.transform().m11()
+        
+        # Get image scale by comparing scene rect to view rect
+        scene_rect = self.app.scene.sceneRect()
+        view_rect = self.app.view.rect()
+        image_scale = min(view_rect.width() / scene_rect.width(),
+                         view_rect.height() / scene_rect.height())
+        
+        # Calculate size considering both scales
+        actual_size = self.handle_size * (image_scale / view_scale)
+        
+        # Ensure size stays within reasonable bounds
+        actual_size = min(max(actual_size, self.handle_size/2), self.handle_size*2)
+        
         if isinstance(self.selected_shape, QGraphicsLineItem):
-            # For lines, update handle positions to line endpoints
             line = self.selected_shape.line()
             p1 = self.selected_shape.mapToScene(line.p1())
             p2 = self.selected_shape.mapToScene(line.p2())
             positions = [p1, p2]
         else:
-            # For rectangles and circles, update handle positions to corners
             rect = self.selected_shape.rect()
             positions = [
                 self.selected_shape.mapToScene(rect.topLeft()),
@@ -220,9 +246,11 @@ class BaseShapeHandler:
                 self.selected_shape.mapToScene(rect.bottomRight())
             ]
 
-        # Update each handle position
+        # Update each handle position and size
         for handle, pos in zip(self.resize_handles, positions):
-            handle.setPos(pos)  # Use setPos instead of setRect for proper positioning
+            half_size = actual_size / 2
+            handle.setRect(-half_size, -half_size, actual_size, actual_size)
+            handle.setPos(pos)
 
     def clear_handles(self):
         """Clear just the resize handles"""

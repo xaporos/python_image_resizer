@@ -300,3 +300,10 @@ class ImageResizerApp(QMainWindow):
                 
                 # Update image display
                 self.image_handler.image_selected(item, self.image_list.currentItem())
+
+    def resizeEvent(self, event):
+        """Handle window resize events"""
+        super().resizeEvent(event)
+        # Fit view to window size
+        if self.scene.items():
+            self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
