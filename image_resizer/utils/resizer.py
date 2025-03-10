@@ -3,34 +3,35 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
 class ImageResizer:
     def __init__(self):
-        self.size_presets = {
-            "Small": 800,
-            "Medium": 1200,
-            "Large": 1600
-        }
+        pass
 
-    def calculate_new_dimensions(self, current_width, current_height, target_width):
-        """Calculate new dimensions maintaining aspect ratio"""
-        if current_width > target_width:
-            width = target_width
-            height = int(target_width / current_width * current_height)
-            return width, height
-        return current_width, current_height
-
-    def resize_single(self, image, size_preset, quality=80):
+    def resize_single(self, image, size_preset):
         """Resize a single image based on preset"""
         if not image:
             return None
 
-        current_width, current_height = image.size
-        target_width = self.size_presets.get(size_preset, current_width)
-        
-        width, height = self.calculate_new_dimensions(current_width, current_height, target_width)
-        
-        # Only resize if dimensions changed
-        if (width, height) != (current_width, current_height):
-            return image.resize((width, height), Image.Resampling.LANCZOS)
-        return image.copy()
+        # Get original dimensions
+        width, height = image.size
+        print(f"Original size: {width}x{height}")
+
+        # Get resize factor based on preset
+        if size_preset == "Small":
+            resize_factor = 4  # Resize 4 times smaller
+        elif size_preset == "Medium":
+            resize_factor = 3  # Resize 3 times smaller
+        elif size_preset == "Large":
+            resize_factor = 2  # Resize 2 times smaller
+        else:
+            print(f"Unknown size preset: {size_preset}")
+            return image.copy()
+
+        # Calculate new dimensions
+        new_width = int(width / resize_factor)
+        new_height = int(height / resize_factor)
+        print(f"Size preset: {size_preset}, Factor: {resize_factor}")
+        print(f"New size: {new_width}x{new_height}")
+
+        return image.resize((new_width, new_height), Image.LANCZOS)
 
     def save_image(self, image, save_path, quality=80):
         """Save image with appropriate settings based on format"""

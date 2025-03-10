@@ -31,7 +31,11 @@ class ResizeDropdown(QFrame):
         size_layout = QHBoxLayout()
         size_label = QLabel("Size:")
         self.size_combo = QComboBox()
-        self.size_combo.addItems(["Small", "Medium", "Large"])
+        self.size_combo.addItems([
+            "Small (800x600)",
+            "Medium (1024x768)",
+            "Large (1280x960)"
+        ])
         self.size_combo.setFixedWidth(120)
         self.size_combo.setStyleSheet(COMBO_BOX_STYLE)
         size_layout.addWidget(size_label)

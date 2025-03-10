@@ -109,17 +109,12 @@ class BaseShapeHandler:
                     
                     # Draw arrow head if this is an arrow shape
                     if shape.data(0) == "arrow":
-                        angle = math.atan2(line.dy(), line.dx())
-                        arrow_size = 20.0
-                        
-                        end = line.p2()
-                        arrow_p1 = QPointF(end.x() - arrow_size * math.cos(angle + math.pi/6),
-                                         end.y() - arrow_size * math.sin(angle + math.pi/6))
-                        arrow_p2 = QPointF(end.x() - arrow_size * math.cos(angle - math.pi/6),
-                                         end.y() - arrow_size * math.sin(angle - math.pi/6))
-                        
-                        painter.drawLine(end, arrow_p1)
-                        painter.drawLine(end, arrow_p2)
+                        # Get stored arrow head points
+                        arrow_points = shape.data(2)
+                        if arrow_points:
+                            arrow_p1, arrow_p2 = arrow_points
+                            painter.drawLine(line.p2(), arrow_p1)
+                            painter.drawLine(line.p2(), arrow_p2)
                 elif isinstance(shape, QGraphicsEllipseItem):
                     rect = shape.rect()
                     rect.translate(shape.pos())

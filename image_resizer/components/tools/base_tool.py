@@ -5,6 +5,7 @@ class BaseTool:
         self.app = app
         self.drawing = False
         self.last_point = None
+        self.line_width = 3  # Set default line width for all tools
 
     def activate(self):
         # Add this method back

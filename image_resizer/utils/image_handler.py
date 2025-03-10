@@ -118,8 +118,14 @@ class ImageHandler:
             # Update scene
             self.parent.scene.clear()
             self.parent.scene.addPixmap(pixmap)
+            
+            # Set scene rect and ensure image fits view
             self.parent.view.setSceneRect(QRectF(pixmap.rect()))
-            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+            
+            # Force an immediate update to ensure proper fitting
+            QApplication.processEvents()
+            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
             
             # Mark as modified and store edited version
             self.modified = True
@@ -139,23 +145,7 @@ class ImageHandler:
                 
                 # Calculate a scale factor based on image diagonal
                 diagonal = (width**2 + height**2)**0.5
-                base_diagonal = 1500.0  # Base size for scaling
-                scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
-                
-                # Set line width for each tool - use a larger base width
-                for tool_name, tool in self.parent.tool_manager.tools.items():
-                    if hasattr(tool, 'line_width'):
-                        # Use base_width of 2 and adjust scaling
-                        base_width = 2
-                        line_scale_factor = max(1.0, min(2.5, diagonal / base_diagonal))
-                        tool.line_width = base_width * line_scale_factor
-                
-                # Also adjust the handle size in each tool's shape handler
-                if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                    # Use smaller base size (6) and limit the maximum scale
-                    base_handle_size = 6
-                    handle_scale_factor = min(2.0, scale_factor)  # Cap at 2.0
-                    tool.shape_handler.handle_size = max(4, int(base_handle_size * handle_scale_factor))
+                self._update_tool_sizes(diagonal)
         
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
@@ -320,23 +310,7 @@ class ImageHandler:
             
             # Calculate a scale factor based on image diagonal
             diagonal = (width**2 + height**2)**0.5
-            base_diagonal = 1500.0  # Base size for scaling
-            scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
-            
-            # Set line width for each tool - use a larger base width
-            for tool_name, tool in self.parent.tool_manager.tools.items():
-                if hasattr(tool, 'line_width'):
-                    # Use base_width of 2 and adjust scaling
-                    base_width = 2
-                    line_scale_factor = max(1.0, min(2.5, diagonal / base_diagonal))
-                    tool.line_width = base_width * line_scale_factor
-            
-            # Also adjust the handle size in each tool's shape handler
-            if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                # Use smaller base size (6) and limit the maximum scale
-                base_handle_size = 6
-                handle_scale_factor = min(2.0, scale_factor)  # Cap at 2.0
-                tool.shape_handler.handle_size = max(4, int(base_handle_size * handle_scale_factor))
+            self._update_tool_sizes(diagonal)
         
         # Update info labels with correct dimensions and file size
         if file_path in self.current_dimensions:
@@ -486,6 +460,11 @@ class ImageHandler:
                 self.current_dimensions[file_path] = previous_state['dimensions']
                 self.edited_file_sizes[file_path] = previous_state['file_size']
                 self.edited_images[file_path] = previous_state['pixmap']
+            
+            # Reset line widths based on restored image size
+            width, height = self.current_dimensions[file_path]
+            diagonal = (width**2 + height**2)**0.5
+            self._update_tool_sizes(diagonal)
             
             # Update info label
             self.update_info_label()
@@ -679,3 +658,43 @@ class ImageHandler:
                     self.parent.size_label.setText("Size: --")
                     self.parent.file_size_label.setText("File size: --")
                 break 
+
+    def _update_tool_sizes(self, diagonal, base_diagonal=1500.0):
+        """Update line widths and handle sizes for all tools"""
+        if not hasattr(self.parent, 'tool_manager'):
+            return
+
+        # Get current size preset
+        size_preset = self.parent.toolbar.size_combo.currentText()
+        
+        # Base sizes (before any resize)
+        base_line_width = 8  # Increased base width
+        base_arrow_size = 45
+        
+        # Get resize factor and set sizes
+        if size_preset == "Small":
+            resize_factor = 4
+            line_width = base_line_width / resize_factor
+            arrow_size = base_arrow_size / resize_factor
+        elif size_preset == "Medium":
+            resize_factor = 3
+            line_width = base_line_width / resize_factor
+            arrow_size = base_arrow_size / resize_factor
+        elif size_preset == "Large":
+            resize_factor = 2
+            line_width = base_line_width / resize_factor
+            arrow_size = base_arrow_size / resize_factor
+        else:  # Original size
+            line_width = 20  # Fixed line width for original size
+            arrow_size = 40  # Fixed arrow size for original size
+        
+        # Set sizes for all tools
+        for tool_name, tool in self.parent.tool_manager.tools.items():
+            if hasattr(tool, 'line_width'):
+                tool.line_width = line_width
+                
+                if tool_name == 'arrow' and hasattr(tool, 'arrow_size'):
+                    tool.arrow_size = arrow_size
+                
+            if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
+                tool.shape_handler.handle_size = 8 
