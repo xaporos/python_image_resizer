@@ -5,7 +5,7 @@ from PyQt5.QtGui import QPen, QBrush, QColor, QTransform
 class ResizeHandle(QGraphicsRectItem):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setRect(-4, -4, 8, 8)  # Small square handle
+        self.setRect(-6, -6, 12, 12)  # Increased from 8x8 to 12x12
         self.setPen(QPen(Qt.white))
         self.setBrush(QBrush(Qt.black))
         self.setZValue(3)  # Above other items

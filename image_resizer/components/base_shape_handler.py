@@ -5,10 +5,12 @@ import math
 
 class BaseShapeHandler:
     def __init__(self, app):
+        print("\nBaseShapeHandler initialized")  # Debug print
         self.app = app
         self.selected_shape = None
         self.resize_handles = []
-        self.handle_size = 12  # Reduced from 24 to 12 for smaller handles
+        self._handle_size = 16
+        print(f"Initial _handle_size set to: {self._handle_size}")
         self.resizing = False
         self.moving = False
         self.resize_handle = None
@@ -16,6 +18,21 @@ class BaseShapeHandler:
         self.original_rect = None
         self.initial_shape_pos = None
         self.initial_geometry = None
+
+    @property
+    def handle_size(self):
+        print(f"Getting handle_size: {self._handle_size}")
+        return self._handle_size
+
+    @handle_size.setter
+    def handle_size(self, value):
+        print(f"\nAttempting to set handle_size to {value}")
+        import traceback
+        print("Stack trace:")
+        for line in traceback.format_stack():
+            if 'image_resizer' in line:  # Only show our code's stack trace
+                print(line.strip())
+        self._handle_size = value
 
     def handle_shape_start(self, pos):
         """Start drawing or resizing a shape"""
@@ -163,7 +180,7 @@ class BaseShapeHandler:
             return new_rect.normalized()
 
     def create_resize_handles(self, item):
-        """Create resize handles for a shape"""
+        print(f"\nCreating handles with size: {self._handle_size}")
         # Clear any existing handles
         for handle in self.resize_handles:
             if handle.scene():
@@ -179,11 +196,14 @@ class BaseShapeHandler:
         image_scale = min(view_rect.width() / scene_rect.width(),
                          view_rect.height() / scene_rect.height())
         
-        # Calculate size considering both scales
-        actual_size = self.handle_size * (image_scale / view_scale)
+        # Calculate base size for handles
+        if image_scale > 1:
+            actual_size = self._handle_size * 0.4  # Smaller handles when zoomed in
+        else:
+            actual_size = self._handle_size  # Normal size when not zoomed
         
-        # Ensure size stays within reasonable bounds
-        actual_size = min(max(actual_size, self.handle_size/2), self.handle_size*2)
+        # Apply view scale
+        actual_size = actual_size / view_scale
         
         positions = []
         if isinstance(item, QGraphicsLineItem):
@@ -214,6 +234,7 @@ class BaseShapeHandler:
 
     def update_resize_handles(self):
         """Update position of resize handles"""
+        print(f"Base handle size in update: {self._handle_size}")  # Debug print
         if not self.selected_shape:
             return
 
@@ -226,11 +247,14 @@ class BaseShapeHandler:
         image_scale = min(view_rect.width() / scene_rect.width(),
                          view_rect.height() / scene_rect.height())
         
-        # Calculate size considering both scales
-        actual_size = self.handle_size * (image_scale / view_scale)
+        # Calculate base size for handles
+        if image_scale > 1:
+            actual_size = self._handle_size * 0.4  # Smaller handles when zoomed in
+        else:
+            actual_size = self._handle_size  # Normal size when not zoomed
         
-        # Ensure size stays within reasonable bounds
-        actual_size = min(max(actual_size, self.handle_size/2), self.handle_size*2)
+        # Apply view scale
+        actual_size = actual_size / view_scale
         
         if isinstance(self.selected_shape, QGraphicsLineItem):
             line = self.selected_shape.line()

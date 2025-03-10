@@ -142,16 +142,20 @@ class ImageHandler:
                 base_diagonal = 1500.0  # Base size for scaling
                 scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
                 
-                # Set line width for each tool - use a larger base width of 3
+                # Set line width for each tool - use a larger base width
                 for tool_name, tool in self.parent.tool_manager.tools.items():
                     if hasattr(tool, 'line_width'):
-                        # Scale from a base width of 3 for thicker lines
-                        tool.line_width = 3 * scale_factor
+                        # Use base_width of 2 and adjust scaling
+                        base_width = 2
+                        line_scale_factor = max(1.0, min(2.5, diagonal / base_diagonal))
+                        tool.line_width = base_width * line_scale_factor
                 
-                # Also increase the handle size in each tool's shape handler
+                # Also adjust the handle size in each tool's shape handler
                 if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                    # Make handles larger (8 is the default size)
-                    tool.shape_handler.handle_size = max(8, int(12 * scale_factor))
+                    # Use smaller base size (6) and limit the maximum scale
+                    base_handle_size = 6
+                    handle_scale_factor = min(2.0, scale_factor)  # Cap at 2.0
+                    tool.shape_handler.handle_size = max(4, int(base_handle_size * handle_scale_factor))
         
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
@@ -319,16 +323,20 @@ class ImageHandler:
             base_diagonal = 1500.0  # Base size for scaling
             scale_factor = max(0.8, min(3.0, diagonal / base_diagonal))
             
-            # Set line width for each tool - use a larger base width of 3
+            # Set line width for each tool - use a larger base width
             for tool_name, tool in self.parent.tool_manager.tools.items():
                 if hasattr(tool, 'line_width'):
-                    # Scale from a base width of 3 for thicker lines
-                    tool.line_width = 3 * scale_factor
-                
-                # Also increase the handle size in each tool's shape handler
-                if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                    # Make handles larger (8 is the default size)
-                    tool.shape_handler.handle_size = max(8, int(12 * scale_factor))
+                    # Use base_width of 2 and adjust scaling
+                    base_width = 2
+                    line_scale_factor = max(1.0, min(2.5, diagonal / base_diagonal))
+                    tool.line_width = base_width * line_scale_factor
+            
+            # Also adjust the handle size in each tool's shape handler
+            if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
+                # Use smaller base size (6) and limit the maximum scale
+                base_handle_size = 6
+                handle_scale_factor = min(2.0, scale_factor)  # Cap at 2.0
+                tool.shape_handler.handle_size = max(4, int(base_handle_size * handle_scale_factor))
         
         # Update info labels with correct dimensions and file size
         if file_path in self.current_dimensions:

@@ -307,3 +307,4 @@ class ImageResizerApp(QMainWindow):
         # Fit view to window size
         if self.scene.items():
             self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+            self.view.centerOn(self.scene.sceneRect().center())
