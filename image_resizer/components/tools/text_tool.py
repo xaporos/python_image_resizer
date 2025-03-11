@@ -1,18 +1,20 @@
 from PyQt5.QtWidgets import (QGraphicsTextItem, QWidget, QHBoxLayout, 
                            QFontComboBox, QSpinBox, QToolButton, QColorDialog,
-                           QGraphicsPixmapItem)
-from PyQt5.QtGui import QFont, QPen, QColor, QTextCursor, QIcon, QPainter, QCursor
-from PyQt5.QtCore import Qt, QSize, QTimer, QRectF, QRect
+                           QGraphicsItem, QApplication)
+from PyQt5.QtGui import (QFont, QPen, QColor, QTextCursor, QPainter, 
+                        QCursor, QPixmap, QImage, QTextCharFormat)
+from PyQt5.QtCore import Qt, QRectF, QTimer, QBuffer
+from PIL import Image
+import io
 from .base_tool import BaseTool
 
 class TextFormatToolbar(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent, Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        super().__init__(None)
         self.setup_ui()
-        self.hide()
+        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.text_item = None
-        self.dragging = False
-        self.drag_start_pos = None
         
     def setup_ui(self):
         layout = QHBoxLayout(self)
@@ -23,379 +25,439 @@ class TextFormatToolbar(QWidget):
         self.font_combo = QFontComboBox()
         self.font_combo.setCurrentFont(QFont("Arial"))
         self.font_combo.setFixedWidth(150)
-        self.font_combo.activated.connect(lambda: self.setInteracting(True))
         layout.addWidget(self.font_combo)
         
         # Font size spinner
         self.size_spin = QSpinBox()
-        self.size_spin.setRange(8, 72)
-        self.size_spin.setValue(12)
+        self.size_spin.setRange(8, 196)
+        self.size_spin.setValue(24)
         self.size_spin.setFixedWidth(50)
         layout.addWidget(self.size_spin)
         
         # Bold button
         self.bold_btn = QToolButton()
         self.bold_btn.setText("B")
-        self.bold_btn.setFont(QFont("Arial", 10, QFont.Bold))
         self.bold_btn.setCheckable(True)
-        self.bold_btn.setFixedSize(QSize(24, 24))
-        self.bold_btn.clicked.connect(lambda: self.setInteracting(True))
         layout.addWidget(self.bold_btn)
         
         # Italic button
         self.italic_btn = QToolButton()
         self.italic_btn.setText("I")
-        self.italic_btn.setFont(QFont("Arial", 10, QFont.StyleItalic))
         self.italic_btn.setCheckable(True)
-        self.italic_btn.setFixedSize(QSize(24, 24))
-        self.italic_btn.clicked.connect(lambda: self.setInteracting(True))
         layout.addWidget(self.italic_btn)
         
         # Color button
         self.color_btn = QToolButton()
-        self.color_btn.setText("A")
-        self.color_btn.setFixedSize(QSize(24, 24))
-        self.color_btn.clicked.connect(lambda: self.setInteracting(True))
+        self.color_btn.setText("Color")
         layout.addWidget(self.color_btn)
         
-        # Add some spacing
-        layout.addSpacing(10)
+        # Cancel button
+        self.cancel_btn = QToolButton()
+        self.cancel_btn.setText("✕")
+        layout.addWidget(self.cancel_btn)
         
         # Apply button
         self.apply_btn = QToolButton()
-        self.apply_btn.setText("✓")  # Checkmark symbol
-        self.apply_btn.setToolTip("Apply text and finish editing")
-        self.apply_btn.setFixedSize(QSize(24, 24))
-        self.apply_btn.setStyleSheet("""
-            QToolButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 3px;
-            }
-            QToolButton:hover {
-                background-color: #45a049;
-            }
-            QToolButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.apply_btn.setText("✓")
         layout.addWidget(self.apply_btn)
         
         self.setFixedHeight(40)
-        self.adjustSize()
-
-    def setInteracting(self, state):
-        self.is_interacting = state
-        if state:
-            # Reset interaction state after a delay
-            QTimer.singleShot(500, lambda: self.setInteracting(False))
-
-    def enterEvent(self, event):
-        super().enterEvent(event)
-        self.is_interacting = True
-
-    def leaveEvent(self, event):
-        super().leaveEvent(event)
-        # Only stop interacting if we're not using controls
-        if not self.childAt(self.mapFromGlobal(QCursor.pos())):
-            QTimer.singleShot(500, self.stopInteracting)
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.is_showing = True
-        
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self.is_showing = False
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = True
-            self.drag_start_pos = event.globalPos() - self.frameGeometry().topLeft()
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if self.dragging and event.buttons() & Qt.LeftButton:
-            self.move(event.globalPos() - self.drag_start_pos)
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        self.dragging = False
-        super().mouseReleaseEvent(event)
-        # Keep interaction state for a bit longer
-        QTimer.singleShot(1000, self.stopInteracting)
-
-    def stopInteracting(self):
-        # Only stop if we're not currently using any controls
-        if not self.underMouse() and not self.hasFocus():
-            self.is_interacting = False
 
     def focusOutEvent(self, event):
-        # Ignore focus out if we're still interacting
-        if self.is_interacting:
-            event.ignore()
-            return
+        # When toolbar loses focus, ensure text item stays editable
+        if self.text_item and not self.underMouse():
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus()
         super().focusOutEvent(event)
 
-class SimpleTextItem(QGraphicsTextItem):
-    def __init__(self, format_toolbar, parent=None):
+class CustomTextItem(QGraphicsTextItem):
+    def __init__(self, tool, parent=None):
         super().__init__(parent)
-        self.format_toolbar = format_toolbar
-        self.format_toolbar.text_item = self
-        self.setDefaultTextColor(Qt.black)
-        self.setFont(QFont("Arial", 12))
-        self.setTextWidth(-1)  # -1 means no width constraint
-        self.setFlag(QGraphicsTextItem.ItemIsFocusable)
-        self.setFlag(QGraphicsTextItem.ItemIsMovable)
-        self.setTextInteractionFlags(Qt.TextEditorInteraction)
-        self.dragging = False
-        self.last_pos = None
+        self.tool = tool
+        self.editing = True
+        self.finalized = False
+        self.setAcceptHoverEvents(True)
+        self.first_click = True  # Add flag for first click
         
-        # Set minimum width for empty field
-        self.document().setTextWidth(370)
-        
-    def keyPressEvent(self, event):
-        super().keyPressEvent(event)
-        # Update width after each keystroke
-        self.updateWidth()
-        
-    def updateWidth(self):
-        # Calculate ideal width based on content
-        doc = self.document()
-        doc.setTextWidth(-1)  # Temporarily remove width constraint
-        new_width = max(370, doc.idealWidth())  # Use 370 as minimum width
-        doc.setTextWidth(new_width)
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        # Show toolbar when text item gets focus
-        scene_pos = self.mapToScene(self.boundingRect().topLeft())
-        view = self.scene().views()[0]
-        view_pos = view.mapFromScene(scene_pos)
-        screen_pos = view.mapToGlobal(view_pos)
-        
-        toolbar_x = screen_pos.x()
-        toolbar_y = screen_pos.y() - self.format_toolbar.height() - 10
-        
-        self.format_toolbar.move(toolbar_x, toolbar_y)
-        self.format_toolbar.show()
-        self.format_toolbar.raise_()
-
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        # Only hide toolbar if clicking outside both text item and toolbar
-        cursor_pos = QCursor.pos()
-        toolbar_rect = self.format_toolbar.geometry()
-        
-        # Get text item's screen coordinates
-        view = self.scene().views()[0]
-        scene_rect = self.sceneBoundingRect()
-        top_left = view.mapToGlobal(view.mapFromScene(scene_rect.topLeft()))
-        bottom_right = view.mapToGlobal(view.mapFromScene(scene_rect.bottomRight()))
-        text_rect = QRect(top_left, bottom_right)
-        
-        if not toolbar_rect.contains(cursor_pos) and not text_rect.contains(cursor_pos):
-            QTimer.singleShot(200, self.checkHideToolbar)
-
-    def checkHideToolbar(self):
-        cursor_pos = QCursor.pos()
-        toolbar_rect = self.format_toolbar.geometry()
-        if not toolbar_rect.contains(cursor_pos) and not self.hasFocus():
-            self.format_toolbar.hide()
-
-    def paint(self, painter, option, widget):
-        super().paint(painter, option, widget)
-        if self.toPlainText() == "" or self.hasFocus():
-            rect = self.boundingRect()
-            pen = QPen(QColor(0, 0, 0, 127))
-            pen.setStyle(Qt.DashLine)
-            painter.setPen(pen)
-            painter.drawRect(rect)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = True
-            self.last_pos = event.scenePos()
-            # Keep focus while dragging
-            self.setFocus()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self.dragging and (event.buttons() & Qt.LeftButton):
-            # Calculate movement delta
-            delta = event.scenePos() - self.last_pos
-            self.setPos(self.pos() + delta)
-            self.last_pos = event.scenePos()
-            
-            # Update toolbar position
-            scene_pos = self.mapToScene(self.boundingRect().topLeft())
-            view = self.scene().views()[0]
-            view_pos = view.mapFromScene(scene_pos)
-            screen_pos = view.mapToGlobal(view_pos)
-            
-            toolbar_x = screen_pos.x()
-            toolbar_y = screen_pos.y() - self.format_toolbar.height() - 10
-            self.format_toolbar.move(toolbar_x, toolbar_y)
+        # Get current size preset and calculate scale
+        size_preset = self.tool.app.toolbar.size_combo.currentText()
+        if size_preset == "Small (800x600)":
+            scale_factor = 4
+        elif size_preset == "Medium (1024x768)":
+            scale_factor = 3
+        elif size_preset == "Large (1280x960)":
+            scale_factor = 2
         else:
-            super().mouseMoveEvent(event)
+            scale_factor = 1
+            
+        # Adjust base sizes for scaling
+        base_font_size = 24
+        
+        # Apply scaling
+        self.setDefaultTextColor(Qt.black)
+        self.setFont(QFont("Arial", base_font_size * scale_factor))
+        
+        # Set flags for interaction
+        self.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.setFlag(QGraphicsItem.ItemIsMovable)
+        self.setFlag(QGraphicsItem.ItemIsFocusable)
+        self.setFlag(QGraphicsItem.ItemIsSelectable)
+        
+        # Set initial content
+        self.setPlainText("Click to type")
+        self.document().contentsChanged.connect(self.updateSize)
+        
+    def focusInEvent(self, event):
+        if not self.finalized:
+            if self.first_click and self.toPlainText() == "Click to type":
+                self.setPlainText("")
+                self.first_click = False
+            self.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.editing = True
+            self.tool.show_toolbar()
+        super().focusInEvent(event)
+            
+    def focusOutEvent(self, event):
+        if not self.finalized:
+            # If text is empty and not the first interaction, restore placeholder
+            if not self.toPlainText().strip() and not self.first_click:
+                self.first_click = True
+                self.setPlainText("Click to type")
+            
+            # Keep text interaction enabled regardless
+            self.setTextInteractionFlags(Qt.TextEditorInteraction)
+            
+        super().focusOutEvent(event)
+        
+    def mousePressEvent(self, event):
+        if self.finalized:
+            if event.button() == Qt.LeftButton:
+                super().mousePressEvent(event)
+            return
+            
+        # Always enable text interaction on click
+        self.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.editing = True
+        self.setFocus()
+        super().mousePressEvent(event)
+        event.accept()
+        
+    def mouseDoubleClickEvent(self, event):
+        if not self.finalized:
+            super().mouseDoubleClickEvent(event)
+            self.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.setFocus()
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = False
-        super().mouseReleaseEvent(event)
+    def keyPressEvent(self, event):
+        if not self.finalized:
+            # Ensure text interaction is enabled when typing
+            self.setTextInteractionFlags(Qt.TextEditorInteraction)
+            super().keyPressEvent(event)
+            self.updateSize()
+        
+    def updateSize(self):
+        # Get the ideal width based on content
+        self.document().setTextWidth(-1)  # Temporarily remove width constraint
+        width = max(50, self.document().idealWidth())  # Minimum 50 pixels
+        self.document().setTextWidth(width)
+        
+        # Calculate height based on document size
+        height = self.document().size().height()
+        
+        # Create a new rect with proper dimensions
+        rect = self.boundingRect()
+        rect.setHeight(height)
+        
+        # Update the text item's geometry
+        self.setTextWidth(width)
+        self.update()
+        
+    def paint(self, painter, option, widget):
+        # Get current scale
+        view = self.scene().views()[0]
+        view_scale = view.transform().m11()
+        
+        # Get current text rectangle
+        text_rect = self.boundingRect()
+        rect = QRectF(text_rect)
+        
+        # Ensure minimum width
+        if rect.width() < 50 / view_scale:
+            rect.setWidth(50 / view_scale)
+            
+        # Draw background
+        painter.setBrush(QColor(255, 255, 255, 200))
+        painter.setPen(Qt.NoPen)
+        painter.drawRect(rect)
+        
+        # Draw text
+        super().paint(painter, option, widget)
+        
+        # Draw border only if editing and not finalized
+        if self.editing and not self.finalized:
+            painter.setPen(QPen(Qt.black, 1 / view_scale, Qt.DashLine))
+            painter.drawRect(rect)
+        
+    def hoverEnterEvent(self, event):
+        if not self.finalized:
+            self.setCursor(Qt.IBeamCursor)
+        super().hoverEnterEvent(event)
+        
+    def hoverLeaveEvent(self, event):
+        if not self.finalized:
+            self.unsetCursor()
+        super().hoverLeaveEvent(event)
 
 class TextTool(BaseTool):
     def __init__(self, app):
         super().__init__(app)
         self.text_item = None
         self.format_toolbar = TextFormatToolbar()
-        self.setup_format_toolbar()
-        self.initial_activation = True  # Track first activation
-
-    def setup_format_toolbar(self):
-        # Make toolbar and its widgets focusable
-        self.format_toolbar.setFocusPolicy(Qt.StrongFocus)
-        self.format_toolbar.font_combo.setFocusPolicy(Qt.StrongFocus)
-        self.format_toolbar.size_spin.setFocusPolicy(Qt.StrongFocus)
-        self.format_toolbar.bold_btn.setFocusPolicy(Qt.StrongFocus)
-        self.format_toolbar.italic_btn.setFocusPolicy(Qt.StrongFocus)
-        self.format_toolbar.color_btn.setFocusPolicy(Qt.StrongFocus)
+        self.setup_toolbar()
+        self.active = False
+        self.prevent_deactivation = False  # Add flag to prevent unwanted deactivation
         
-        # Connect signals
+    def setup_toolbar(self):
         self.format_toolbar.font_combo.currentFontChanged.connect(self.update_font)
-        self.format_toolbar.size_spin.valueChanged.connect(self.update_font_size)
+        self.format_toolbar.size_spin.valueChanged.connect(self.update_size)
         self.format_toolbar.bold_btn.toggled.connect(self.update_bold)
         self.format_toolbar.italic_btn.toggled.connect(self.update_italic)
-        self.format_toolbar.color_btn.clicked.connect(self.choose_color)
+        self.format_toolbar.color_btn.clicked.connect(self.update_color)
         self.format_toolbar.apply_btn.clicked.connect(self.apply_text)
-
+        self.format_toolbar.cancel_btn.clicked.connect(self.cancel_text)
+        
     def activate(self):
+        """Called when the tool is selected"""
         super().activate()
-        self.text_item = None
-        # Hide toolbar only on first activation
-        if self.initial_activation:
-            self.format_toolbar.hide()
-            self.initial_activation = False
-
+        self.active = True
+        self.prevent_deactivation = True  # Set flag when activating
+        
     def deactivate(self):
-        self.initial_activation = True  # Reset for next activation
-        super().deactivate()
+        """Called when the tool is deselected"""
+        if self.prevent_deactivation:  # Only deactivate if allowed
+            return
+            
+        self.active = False
+        # Clean up any empty text items
+        if self.text_item and not self.text_item.toPlainText().strip():
+            self.app.scene.removeItem(self.text_item)
+        self.text_item = None
         self.format_toolbar.hide()
-        if self.text_item:
-            if not self.text_item.toPlainText().strip():
-                self.app.scene.removeItem(self.text_item)
-            else:
-                self.app.image_handler.save_state()
-            self.text_item = None
+        super().deactivate()
 
     def mouse_press(self, event):
-        pos = self.app.view.mapToScene(event.pos())
-        
-        # If we have an existing text item
-        if self.text_item:
-            # If clicking outside current text item
-            if not self.text_item.contains(self.text_item.mapFromScene(pos)):
-                # Always remove the existing text item when clicking in a new location
-                self.app.scene.removeItem(self.text_item)
-                self.text_item = None
-                self.format_toolbar.hide()
-                
-                # Create new text item at the new location
-                self.text_item = SimpleTextItem(self.format_toolbar)
-                self.text_item.setPos(pos)
-                self.app.scene.addItem(self.text_item)
-                QTimer.singleShot(100, lambda: self.setTextItemFocus())
+        if not self.active:
             return
-
-        # Create new text item if we don't have one
-        self.text_item = SimpleTextItem(self.format_toolbar)
-        self.text_item.setPos(pos)
-        self.app.scene.addItem(self.text_item)
-        QTimer.singleShot(100, lambda: self.setTextItemFocus())
-
-    def setTextItemFocus(self):
-        if self.text_item and self.text_item.scene():
+            
+        self.prevent_deactivation = True
+        pos = self.app.view.mapToScene(event.pos())
+        item = self.app.scene.itemAt(pos, self.app.view.transform())
+        
+        if isinstance(item, CustomTextItem):
+            if item.finalized:
+                event.accept()
+                return
+                
+            # Clicking on an existing text item
+            self.text_item = item
+            self.text_item.editing = True
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            if self.text_item.toPlainText() == "Click to type":
+                self.text_item.first_click = True
             self.text_item.setFocus()
-
-    def update_font(self, font):
-        if self.text_item:
-            current_font = self.text_item.font()
-            current_font.setFamily(font.family())
-            self.text_item.setFont(current_font)
-
-    def update_font_size(self, size):
-        if self.text_item:
-            current_font = self.text_item.font()
-            current_font.setPointSize(size)
-            self.text_item.setFont(current_font)
-            # Update the size spinner to reflect the actual size
-            self.format_toolbar.size_spin.setValue(size)
-
-    def update_bold(self, bold):
-        if self.text_item:
-            current_font = self.text_item.font()
-            current_font.setBold(bold)
-            self.text_item.setFont(current_font)
-
-    def update_italic(self, italic):
-        if self.text_item:
-            current_font = self.text_item.font()
-            current_font.setItalic(italic)
-            self.text_item.setFont(current_font)
-
-    def choose_color(self):
-        if self.text_item:
-            color = QColorDialog.getColor(self.text_item.defaultTextColor())
-            if color.isValid():
-                self.text_item.setDefaultTextColor(color)
-                # Update color button appearance
-                self.format_toolbar.color_btn.setStyleSheet(
-                    f"QToolButton {{ color: {color.name()}; }}")
-
-    def apply_text(self):
-        """Finalize the text and deselect the tool"""
+            self.show_toolbar()
+            event.accept()
+            return
+            
+        # Creating new text item
         if self.text_item:
             if self.text_item.toPlainText().strip():
-                # Save state before making changes
-                self.app.image_handler.save_state()
+                self.text_item.editing = False
+                self.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
+            self.text_item = None
                 
-                # Get the text item's properties before removing it
-                text = self.text_item.toPlainText()
-                font = self.text_item.font()
-                color = self.text_item.defaultTextColor()
-                pos = self.text_item.pos()
-                rect = self.text_item.boundingRect()
-                
-                # Remove the interactive text item
-                self.text_item.clearFocus()
-                self.app.scene.removeItem(self.text_item)
-                
-                # Find the pixmap item and draw the text permanently
-                for item in self.app.scene.items():
-                    if isinstance(item, QGraphicsPixmapItem):
-                        pixmap = item.pixmap().copy()
-                        painter = QPainter(pixmap)
-                        painter.setFont(font)
-                        painter.setPen(color)
-                        painter.drawText(
-                            QRectF(pos.x(), pos.y(), rect.width(), rect.height()),
-                            Qt.TextWordWrap,
-                            text
-                        )
-                        painter.end()
-                        
-                        # Update scene with new pixmap
-                        self.app.scene.clear()
-                        self.app.scene.addPixmap(pixmap)
-                        break
-                
-                self.text_item = None
-            else:
-                self.app.scene.removeItem(self.text_item)
-                self.text_item = None
+        # Save state before creating new text item
+        self.app.image_handler.save_state()
+        
+        # Create new text item
+        self.text_item = CustomTextItem(self)
+        self.text_item.setPos(pos)
+        self.app.scene.addItem(self.text_item)
+        self.text_item.editing = True
+        self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.text_item.setFocus()
+        self.show_toolbar()
+        event.accept()
+
+    def check_deactivate(self):
+        """Don't auto-deactivate - require explicit confirmation"""
+        pass
+
+    def apply_text(self):
+        """Apply text by rendering it onto the image"""
+        self.prevent_deactivation = False  # Allow deactivation when applying
+        if self.text_item and self.text_item.toPlainText().strip():
+            # Save current state before applying text
+            current_state = self.app.image_handler.current_image.copy()
             
+            # Get the text item's position and bounds
+            scene_pos = self.text_item.scenePos()
+            bounds = self.text_item.boundingRect()
+            
+            # Create a temporary pixmap to render the text
+            temp_pixmap = QPixmap(bounds.size().toSize())
+            temp_pixmap.fill(Qt.transparent)
+            
+            # Create painter for the temporary pixmap
+            painter = QPainter(temp_pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.TextAntialiasing)
+            
+            # Create a copy of the document to preserve color
+            doc = self.text_item.document().clone()
+            
+            # Apply text color to the entire document
+            text_color = self.text_item.defaultTextColor()
+            text_format = doc.rootFrame().frameFormat()
+            char_format = QTextCharFormat()
+            char_format.setForeground(text_color)
+            cursor = QTextCursor(doc)
+            cursor.select(QTextCursor.Document)
+            cursor.mergeCharFormat(char_format)
+            
+            # Draw the document with color
+            doc.drawContents(painter, QRectF(0, 0, bounds.width(), bounds.height()))
+            painter.end()
+            
+            # Find the image item in the scene
+            image_item = None
+            for item in self.app.scene.items():
+                if hasattr(item, 'pixmap'):
+                    image_item = item
+                    break
+                    
+            if not image_item:
+                return
+                
+            # Create a copy to paint on
+            target_pixmap = image_item.pixmap().copy()
+            
+            # Create painter for the target pixmap
+            painter = QPainter(target_pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.TextAntialiasing)
+            
+            # Draw the temporary pixmap onto the target at the correct position
+            painter.drawPixmap(scene_pos.x(), scene_pos.y(), temp_pixmap)
+            painter.end()
+            
+            # Remove the text item from scene
+            self.app.scene.removeItem(self.text_item)
+            self.text_item = None
+            
+            # Update the scene with the new pixmap
+            image_item.setPixmap(target_pixmap)
+            
+            # Convert QPixmap to PIL Image and update image handler
+            image = target_pixmap.toImage()
+            buffer = QBuffer()
+            buffer.open(QBuffer.ReadWrite)
+            image.save(buffer, "PNG")
+            
+            pil_image = Image.open(io.BytesIO(buffer.data()))
+            
+            # Save the current state before updating
+            self.app.image_handler.save_state()
+            
+            # Update the current image
+            self.app.image_handler.current_image = pil_image
+            
+        else:
+            # Remove empty text item
+            if self.text_item:
+                self.app.scene.removeItem(self.text_item)
+                self.text_item = None
+        
+        # Hide toolbar and deactivate tool
         self.format_toolbar.hide()
         if hasattr(self.app.toolbar, 'text_btn'):
             self.app.toolbar.text_btn.setChecked(False)
-        self.app.tool_manager.set_tool(None) 
+        self.app.tool_manager.set_tool(None)
+
+    def cancel_text(self):
+        """Cancel current text and deactivate tool"""
+        self.prevent_deactivation = False  # Allow deactivation when canceling
+        if self.text_item:
+            self.app.scene.removeItem(self.text_item)
+            self.text_item = None
+        self.format_toolbar.hide()
+        if hasattr(self.app.toolbar, 'text_btn'):
+            self.app.toolbar.text_btn.setChecked(False)
+        self.app.tool_manager.set_tool(None)
+
+    def show_toolbar(self):
+        if not self.text_item:
+            return
+            
+        # Set reference to current text item
+        self.format_toolbar.text_item = self.text_item
+        
+        pos = self.text_item.scenePos()
+        view_pos = self.app.view.mapFromScene(pos)
+        global_pos = self.app.view.mapToGlobal(view_pos)
+        
+        # Position toolbar above text
+        self.format_toolbar.move(global_pos.x(), 
+                               max(0, global_pos.y() - self.format_toolbar.height() - 10))
+        self.format_toolbar.show()
+        self.format_toolbar.raise_()
+
+    def update_font(self, font):
+        if self.text_item:
+            self.text_item.setFont(font)
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus()
+            
+    def update_size(self, size):
+        if self.text_item:
+            # Get current scale
+            size_preset = self.app.toolbar.size_combo.currentText()
+            if size_preset == "Small (800x600)":
+                scale_factor = 4
+            elif size_preset == "Medium (1024x768)":
+                scale_factor = 3
+            elif size_preset == "Large (1280x960)":
+                scale_factor = 2
+            else:
+                scale_factor = 1
+                
+            # Apply scaled font size
+            font = self.text_item.font()
+            font.setPointSize(size * scale_factor)
+            self.text_item.setFont(font)
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus()
+            
+    def update_bold(self, bold):
+        if self.text_item:
+            font = self.text_item.font()
+            font.setBold(bold)
+            self.text_item.setFont(font)
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus()
+            
+    def update_italic(self, italic):
+        if self.text_item:
+            font = self.text_item.font()
+            font.setItalic(italic)
+            self.text_item.setFont(font)
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus()
+            
+    def update_color(self):
+        if self.text_item:
+            color = QColorDialog.getColor()
+            if color.isValid():
+                self.text_item.setDefaultTextColor(color)
+                self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+                self.text_item.setFocus() 

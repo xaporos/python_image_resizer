@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsView
+from PyQt5.QtWidgets import QGraphicsView, QGraphicsTextItem
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
 
@@ -11,11 +11,44 @@ class CustomGraphicsView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+        
+        # Enable mouse tracking for better text tool interaction
+        self.setMouseTracking(True)
+        
+        # Add text input focus handling
+        self.setFocusPolicy(Qt.StrongFocus)
 
     def mousePressEvent(self, event):
-        if self.parent:
-            self.parent.mouse_press(event)
-        super().mousePressEvent(event)
+        # Check if text tool is active
+        if (hasattr(self.parent, 'tool_manager') and 
+            self.parent.tool_manager.current_tool and 
+            self.parent.tool_manager.current_tool.__class__.__name__ == 'TextTool'):
+            # Let the scene handle the event first
+            super().mousePressEvent(event)
+            # Then notify the parent
+            if self.parent:
+                self.parent.mouse_press(event)
+        else:
+            # For other tools, use the original order
+            if self.parent:
+                self.parent.mouse_press(event)
+            super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        # Ensure double clicks are handled for text editing
+        super().mouseDoubleClickEvent(event)
+        if self.parent and hasattr(self.parent, 'tool_manager'):
+            tool = self.parent.tool_manager.current_tool
+            if tool and tool.__class__.__name__ == 'TextTool':
+                tool.mouse_press(event)
+
+    def keyPressEvent(self, event):
+        # Ensure key events reach the text item
+        if self.scene().focusItem() and isinstance(self.scene().focusItem(), QGraphicsTextItem):
+            super().keyPressEvent(event)
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self.parent:

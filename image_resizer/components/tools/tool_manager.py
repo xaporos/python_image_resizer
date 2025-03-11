@@ -50,6 +50,8 @@ class ToolManager:
             self.app.toolbar.rect_btn.setChecked(tool_name == 'rectangle')
         if hasattr(self.app.toolbar, 'line_btn'):
             self.app.toolbar.line_btn.setChecked(tool_name == 'line')
+        if hasattr(self.app.toolbar, 'text_btn'):
+            self.app.toolbar.text_btn.setChecked(tool_name == 'text')
 
     def handle_mouse_press(self, event):
         if self.current_tool:
