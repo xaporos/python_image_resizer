@@ -290,8 +290,21 @@ class ImageHandler:
             # Use edited version
             pixmap = self.edited_images[file_path]
         else:
-            # Load original image
-            pixmap = QPixmap(file_path)
+            # Convert original PIL Image to QPixmap
+            original_image = self.images.get(file_path)
+            if original_image:
+                # Convert PIL Image to QPixmap
+                img_array = np.array(original_image)
+                if len(img_array.shape) == 3:  # Color image
+                    height, width, channels = img_array.shape
+                    bytes_per_line = channels * width
+                    # No need to convert BGR to RGB since PIL already gives us RGB
+                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                else:  # Grayscale image
+                    height, width = img_array.shape
+                    bytes_per_line = width
+                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                pixmap = QPixmap.fromImage(qimage)
         
         if pixmap and not pixmap.isNull():
             # Update the scene
@@ -317,11 +330,11 @@ class ImageHandler:
             width, height = self.current_dimensions[file_path]
             self.parent.size_label.setText(f"Size: {width} × {height}px")
             
-            # Use actual file size from disk for unedited images
-            if file_path not in self.edited_images:
-                file_size = os.path.getsize(file_path) / (1024 * 1024)
-            else:
+            # Get file size from stored values
+            if file_path in self.edited_images:
                 file_size = self.edited_file_sizes.get(file_path, 0)
+            else:
+                file_size = self.file_sizes.get(file_path, 0)
             
             self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
 
@@ -608,9 +621,16 @@ class ImageHandler:
 
     def rename_image(self, old_name, new_name):
         """Rename image file in the list"""
+        # Store current states
+        temp_images = self.images.copy()
+        temp_edited_images = self.edited_images.copy()
+        temp_current_dimensions = self.current_dimensions.copy()
+        temp_file_sizes = self.file_sizes.copy()
+        temp_edited_file_sizes = self.edited_file_sizes.copy()
+        
         # Find the file path
         old_path = None
-        for path in self.images.keys():
+        for path in temp_images.keys():
             if os.path.basename(path) == old_name:
                 old_path = path
                 break
@@ -619,20 +639,49 @@ class ImageHandler:
             # Create new path
             new_path = os.path.join(os.path.dirname(old_path), new_name)
             
-            # Update dictionaries
-            self.images[new_path] = self.images.pop(old_path)
-            if old_path in self.edited_images:
-                self.edited_images[new_path] = self.edited_images.pop(old_path)
-            if old_path in self.current_dimensions:
-                self.current_dimensions[new_path] = self.current_dimensions.pop(old_path)
-            if old_path in self.file_sizes:
-                self.file_sizes[new_path] = self.file_sizes.pop(old_path)
+            # Clear all dictionaries
+            self.images.clear()
+            self.edited_images.clear()
+            self.current_dimensions.clear()
+            self.file_sizes.clear()
+            self.edited_file_sizes.clear()
             
-            # Update list widget
-            current_row = self.parent.image_list.currentRow()
-            self.parent.image_list.takeItem(current_row)
-            self.parent.add_image_to_list(new_name)
-            self.parent.image_list.setCurrentRow(current_row)
+            # Clear the list widget
+            self.parent.image_list.clear()
+            
+            # Rebuild dictionaries with updated paths
+            for path, image in temp_images.items():
+                if path == old_path:
+                    self.images[new_path] = image
+                    if old_path in temp_edited_images:
+                        self.edited_images[new_path] = temp_edited_images[old_path]
+                    if old_path in temp_current_dimensions:
+                        self.current_dimensions[new_path] = temp_current_dimensions[old_path]
+                    if old_path in temp_file_sizes:
+                        self.file_sizes[new_path] = temp_file_sizes[old_path]
+                    if old_path in temp_edited_file_sizes:
+                        self.edited_file_sizes[new_path] = temp_edited_file_sizes[old_path]
+                    # Add to list with new name
+                    self.parent.add_image_to_list(new_name)
+                else:
+                    self.images[path] = image
+                    if path in temp_edited_images:
+                        self.edited_images[path] = temp_edited_images[path]
+                    if path in temp_current_dimensions:
+                        self.current_dimensions[path] = temp_current_dimensions[path]
+                    if path in temp_file_sizes:
+                        self.file_sizes[path] = temp_file_sizes[path]
+                    if path in temp_edited_file_sizes:
+                        self.edited_file_sizes[path] = temp_edited_file_sizes[path]
+                    # Add to list with original name
+                    self.parent.add_image_to_list(os.path.basename(path))
+            
+            # Find and select the renamed item
+            for i in range(self.parent.image_list.count()):
+                item = self.parent.image_list.item(i)
+                if self.parent.image_list.itemWidget(item).image_name == new_name:
+                    self.parent.image_list.setCurrentRow(i)
+                    break
 
     def delete_image(self, image_name):
         """Delete image from the list"""
