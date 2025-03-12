@@ -78,6 +78,9 @@ class CustomTextItem(QGraphicsTextItem):
         self.finalized = False
         self.setAcceptHoverEvents(True)
         self.first_click = True  # Add flag for first click
+        self.edge_dragging = False
+        self.edge_hover = False
+        self.edge_margin = 5  # pixels from edge where cursor changes
         
         # Get current size preset and calculate scale
         size_preset = self.tool.app.toolbar.size_combo.currentText()
@@ -119,15 +122,30 @@ class CustomTextItem(QGraphicsTextItem):
             
     def focusOutEvent(self, event):
         if not self.finalized:
-            # If text is empty and not the first interaction, restore placeholder
+            # Don't change text interaction flags on focus out
+            # Only restore placeholder if needed
             if not self.toPlainText().strip() and not self.first_click:
                 self.first_click = True
                 self.setPlainText("Click to type")
-            
-            # Keep text interaction enabled regardless
-            self.setTextInteractionFlags(Qt.TextEditorInteraction)
-            
         super().focusOutEvent(event)
+        
+    def hoverMoveEvent(self, event):
+        if not self.finalized:
+            # Check if we're near the edges
+            rect = self.boundingRect()
+            pos = event.pos()
+            near_edge = (pos.x() <= self.edge_margin or 
+                        pos.x() >= rect.width() - self.edge_margin or
+                        pos.y() <= self.edge_margin or 
+                        pos.y() >= rect.height() - self.edge_margin)
+            
+            if near_edge:
+                self.setCursor(Qt.SizeAllCursor)
+                self.edge_hover = True
+            else:
+                self.setCursor(Qt.IBeamCursor)
+                self.edge_hover = False
+        super().hoverMoveEvent(event)
         
     def mousePressEvent(self, event):
         if self.finalized:
@@ -135,19 +153,40 @@ class CustomTextItem(QGraphicsTextItem):
                 super().mousePressEvent(event)
             return
             
-        # Always enable text interaction on click
+        if event.button() == Qt.LeftButton and self.edge_hover:
+            self.edge_dragging = True
+            self.setTextInteractionFlags(Qt.NoTextInteraction)
+            self.setCursor(Qt.SizeAllCursor)
+            super().mousePressEvent(event)
+            event.accept()
+            return
+            
+        # Regular text editing click
+        self.edge_dragging = False
         self.setTextInteractionFlags(Qt.TextEditorInteraction)
         self.editing = True
         self.setFocus()
+        # Make sure the tool knows this is the active text item
+        self.tool.text_item = self
         super().mousePressEvent(event)
         event.accept()
         
-    def mouseDoubleClickEvent(self, event):
-        if not self.finalized:
-            super().mouseDoubleClickEvent(event)
-            self.setTextInteractionFlags(Qt.TextEditorInteraction)
-            self.setFocus()
-
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.edge_dragging = False
+            if self.edge_hover:
+                self.setCursor(Qt.SizeAllCursor)
+            else:
+                self.setCursor(Qt.IBeamCursor)
+        super().mouseReleaseEvent(event)
+        
+    def mouseMoveEvent(self, event):
+        if self.edge_dragging:
+            self.setTextInteractionFlags(Qt.NoTextInteraction)
+            super().mouseMoveEvent(event)
+        elif self.textInteractionFlags() & Qt.TextEditorInteraction:
+            super().mouseMoveEvent(event)
+        
     def keyPressEvent(self, event):
         if not self.finalized:
             # Ensure text interaction is enabled when typing
@@ -259,6 +298,10 @@ class TextTool(BaseTool):
                 return
                 
             # Clicking on an existing text item
+            if self.text_item and self.text_item != item:
+                # If we have a previous text item, just deactivate it
+                self.text_item.editing = False
+                
             self.text_item = item
             self.text_item.editing = True
             self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
@@ -269,15 +312,12 @@ class TextTool(BaseTool):
             event.accept()
             return
             
-        # Creating new text item
+        # Clicking outside any text item
         if self.text_item:
-            if self.text_item.toPlainText().strip():
-                self.text_item.editing = False
-                self.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
-            self.text_item = None
-                
-        # Save state before creating new text item
-        self.app.image_handler.save_state()
+            # Don't immediately deactivate the current text item
+            if not self.text_item.toPlainText().strip():
+                self.app.scene.removeItem(self.text_item)
+                self.text_item = None
         
         # Create new text item
         self.text_item = CustomTextItem(self)
@@ -402,13 +442,22 @@ class TextTool(BaseTool):
         # Set reference to current text item
         self.format_toolbar.text_item = self.text_item
         
-        pos = self.text_item.scenePos()
-        view_pos = self.app.view.mapFromScene(pos)
-        global_pos = self.app.view.mapToGlobal(view_pos)
+        # Get the scene view and its viewport
+        view = self.app.view
         
-        # Position toolbar above text
-        self.format_toolbar.move(global_pos.x(), 
-                               max(0, global_pos.y() - self.format_toolbar.height() - 10))
+        # Position toolbar at the top of the image, centered horizontally
+        scene_rect = view.sceneRect()
+        view_rect = view.viewport().rect()
+        view_top_left = view.mapToGlobal(view.viewport().rect().topLeft())
+        
+        # Calculate horizontal position to center the toolbar
+        toolbar_width = self.format_toolbar.sizeHint().width()
+        x_pos = view_top_left.x() + (view_rect.width() - toolbar_width) // 2
+        
+        # Position at top with small margin
+        y_pos = view_top_left.y() + 10
+        
+        self.format_toolbar.move(x_pos, y_pos)
         self.format_toolbar.show()
         self.format_toolbar.raise_()
 

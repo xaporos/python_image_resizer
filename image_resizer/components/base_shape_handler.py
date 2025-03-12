@@ -341,9 +341,30 @@ class BaseShapeHandler:
                 line = self.selected_shape.line()
                 
                 if handle_index == 0:  # Start point
-                    self.selected_shape.setLine(QLineF(item_pos, line.p2()))
+                    new_line = QLineF(item_pos, line.p2())
                 else:  # End point
-                    self.selected_shape.setLine(QLineF(line.p1(), item_pos))
+                    new_line = QLineF(line.p1(), item_pos)
+                
+                self.selected_shape.setLine(new_line)
+                
+                # Update arrow head if this is an arrow
+                if self.selected_shape.data(0) == "arrow":
+                    angle = math.atan2(new_line.dy(), new_line.dx())
+                    arrow_size = self.selected_shape.data(1)
+                    
+                    # Recalculate arrow head points
+                    arrow_p1 = QPointF(
+                        new_line.p2().x() - arrow_size * math.cos(angle + math.pi/6),
+                        new_line.p2().y() - arrow_size * math.sin(angle + math.pi/6)
+                    )
+                    arrow_p2 = QPointF(
+                        new_line.p2().x() - arrow_size * math.cos(angle - math.pi/6),
+                        new_line.p2().y() - arrow_size * math.sin(angle - math.pi/6)
+                    )
+                    
+                    # Update stored arrow head points
+                    self.selected_shape.setData(2, [arrow_p1, arrow_p2])
+                    self.selected_shape.setData(3, angle)
             else:
                 # For circles and rectangles, use the same coordinate handling as lines
                 item_pos = self.selected_shape.mapFromScene(pos)
@@ -368,6 +389,25 @@ class BaseShapeHandler:
             delta = pos - self.start_pos
             new_pos = self.initial_shape_pos + delta
             self.selected_shape.setPos(new_pos)
+            
+            # Update arrow head if needed
+            if isinstance(self.selected_shape, QGraphicsLineItem) and self.selected_shape.data(0) == "arrow":
+                line = self.selected_shape.line()
+                angle = math.atan2(line.dy(), line.dx())
+                arrow_size = self.selected_shape.data(1)
+                
+                arrow_p1 = QPointF(
+                    line.p2().x() - arrow_size * math.cos(angle + math.pi/6),
+                    line.p2().y() - arrow_size * math.sin(angle + math.pi/6)
+                )
+                arrow_p2 = QPointF(
+                    line.p2().x() - arrow_size * math.cos(angle - math.pi/6),
+                    line.p2().y() - arrow_size * math.sin(angle - math.pi/6)
+                )
+                
+                self.selected_shape.setData(2, [arrow_p1, arrow_p2])
+                self.selected_shape.setData(3, angle)
+            
             self.update_resize_handles()
             return True
         return False
