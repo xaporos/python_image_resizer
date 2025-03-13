@@ -88,68 +88,72 @@ class CropTool(BaseTool):
             return
         
         try:
+            # Get current file path
+            current_item = self.app.image_list.currentItem()
+            if not current_item:
+                return
+            file_path = self.app.image_handler.get_file_path_from_item(current_item)
+            if not file_path:
+                return
+            
             # Get crop rectangle
             rect = self.crop_rect.rect().normalized()
             
-            # Find the pixmap item
+            # Save state before cropping
+            self.app.image_handler.save_state()
+            
+            # Get the original pixmap
+            original_pixmap = None
+            
+            # Store shapes and their visibility states
+            shapes_and_handles = []
             for item in self.app.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
-                    # Get the original pixmap before any changes
                     original_pixmap = item.pixmap()
-                    
-                    # Save the original state with dimensions
-                    current_item = self.app.image_list.currentItem()
-                    if current_item:
-                        file_path = self.app.image_handler.get_file_path_from_item(current_item)
-                        if file_path:
-                            # Store original dimensions and pixmap in history
-                            original_state = {
-                                'pixmap': original_pixmap.copy(),
-                                'dimensions': self.app.image_handler.current_dimensions[file_path],
-                                'file_size': self.app.image_handler.edited_file_sizes.get(file_path, 
-                                           self.app.image_handler.file_sizes[file_path])
-                            }
-                            self.app.image_handler.history.append(original_state)
-                            
-                            # Also store in image-specific history
-                            if file_path not in self.app.image_handler.image_histories:
-                                self.app.image_handler.image_histories[file_path] = []
-                            self.app.image_handler.image_histories[file_path].append(original_state)
-                    
-                    # Get the cropped portion of the image
-                    cropped = original_pixmap.copy(rect.toRect())
-                    
-                    # Update scene with cropped image
-                    self.app.scene.clear()  # This will delete all items
-                    self.app.scene.addPixmap(cropped)
-                    
-                    # Update view to fit the cropped image
-                    self.app.view.setSceneRect(QRectF(cropped.rect()))
-                    self.app.view.fitInView(self.app.view.sceneRect(), Qt.KeepAspectRatio)
-                    
-                    # Update current dimensions and file size
-                    if current_item and file_path:
-                        self.app.image_handler.current_dimensions[file_path] = (cropped.width(), cropped.height())
-                        self.app.image_handler.edited_file_sizes[file_path] = self.app.image_handler.calculate_file_size(cropped)
-                        self.app.image_handler.edited_images[file_path] = cropped
-                    
-                    # Update info label
-                    self.app.image_handler.update_info_label()
-                    self.app.image_handler.modified = True
-                    
-                    # Enable undo button
-                    self.app.toolbar.undo_btn.setEnabled(True)
-                    break
+                elif hasattr(item, 'isHandle') or (hasattr(item, 'data') and item.data(0) == 'handle'):
+                    # Store handle visibility and temporarily hide it
+                    shapes_and_handles.append((item, item.isVisible()))
+                    item.setVisible(False)
                 
+            if not original_pixmap:
+                return
+            
+            # Get the cropped portion of the image
+            cropped = original_pixmap.copy(rect.toRect())
+            
+            # Clear scene and add cropped image
+            self.app.scene.clear()
+            scene_pixmap_item = self.app.scene.addPixmap(cropped)
+            scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+            
+            # Set scene rect to match the cropped image size
+            self.app.scene.setSceneRect(0, 0, cropped.width(), cropped.height())
+            
+            # Use the helper method to properly fit the image
+            self.app.image_handler.fit_image_to_view()
+            
+            # Update dimensions and store edited version
+            self.app.image_handler.current_dimensions[file_path] = (cropped.width(), cropped.height())
+            self.app.image_handler.edited_file_sizes[file_path] = self.app.image_handler.calculate_file_size(cropped)
+            self.app.image_handler.edited_images[file_path] = cropped
+            
+            # Update info labels
+            self.app.image_handler.update_info_label()
+            
+            # Mark as modified
+            self.app.image_handler.modified = True
+            
+            # Clean up the tool state
+            self.cleanup()
+            
+            # Deactivate the crop tool
+            if hasattr(self.app.toolbar, 'crop_btn'):
+                self.app.toolbar.crop_btn.setChecked(False)
+            self.app.tool_manager.set_tool(None)
+            
         except Exception as e:
             print(f"Error in finalize_crop: {str(e)}")
-        finally:
-            # Clean up and deselect tool
-            try:
-                self.cleanup()
-            except Exception as e:
-                print(f"Error in cleanup: {str(e)}")
-            
+            self.cleanup()
             if hasattr(self.app.toolbar, 'crop_btn'):
                 self.app.toolbar.crop_btn.setChecked(False)
             self.app.tool_manager.set_tool(None)

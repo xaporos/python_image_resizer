@@ -177,9 +177,10 @@ class Toolbar(QWidget):
         # Size combo with correct preset strings
         self.size_combo = QComboBox()
         self.size_combo.addItems([
-            "Small (800x600)",
-            "Medium (1024x768)",
-            "Large (1280x960)"
+            "Original",
+            "Small",
+            "Medium",
+            "Large"
         ])
         self.size_combo.setFixedWidth(120)  # Increased width to fit text
         self.size_combo.setFixedHeight(28)

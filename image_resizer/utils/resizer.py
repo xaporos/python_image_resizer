@@ -16,7 +16,6 @@ class ImageResizer:
             
             # Get original dimensions
             width, height = image.size
-            print(f"Original dimensions: {width}x{height}")
 
             # Extract preset name without percentage
             preset_name = size_preset.split(" ")[0]

@@ -277,9 +277,12 @@ class ImageHandler:
                 # If this is the current image, update the preview
                 if item == current_item:
                     self.parent.scene.clear()
-                    self.parent.scene.addPixmap(pixmap)
-                    self.parent.view.setSceneRect(QRectF(pixmap.rect()))
-                    self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+                    scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
+                    scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+                    
+                    # Use the helper method to fit image
+                    self.fit_image_to_view()
+                    
                     self.update_info_label()
             
             # Mark all as modified
@@ -294,6 +297,35 @@ class ImageHandler:
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
 
+    def fit_image_to_view(self):
+        """Helper method to properly fit and center image in view"""
+        if self.parent.scene.items():
+            # Reset transform and scrollbars first
+            self.parent.view.resetTransform()
+            self.parent.view.horizontalScrollBar().setValue(0)
+            self.parent.view.verticalScrollBar().setValue(0)
+            
+            # Get the pixmap item
+            pixmap_item = None
+            for item in self.parent.scene.items():
+                if isinstance(item, QGraphicsPixmapItem):
+                    pixmap_item = item
+                    break
+            
+            if pixmap_item:
+                # Set scene rect to exactly match the pixmap bounds
+                pixmap_rect = pixmap_item.boundingRect()
+                self.parent.scene.setSceneRect(pixmap_rect)
+                
+                # Fit in view while maintaining aspect ratio
+                self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+                # Process events to ensure view is updated
+                QApplication.processEvents()
+                # Reset scrollbars again and fit view again
+                self.parent.view.horizontalScrollBar().setValue(0)
+                self.parent.view.verticalScrollBar().setValue(0)
+                self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+
     def image_selected(self, current, previous):
         """Handle image selection change"""
         if not current:
@@ -304,12 +336,31 @@ class ImageHandler:
         if not file_path:
             return
         
+        # Clear the scene first
+        self.parent.scene.clear()
+        
         # Load the image into the scene
         if file_path in self.edited_images:
-            # Use edited version
+            # Use edited version with all its modifications
             pixmap = self.edited_images[file_path]
             width, height = self.current_dimensions[file_path]
             file_size = self.edited_file_sizes.get(file_path, 0)
+            
+            # Add pixmap to scene
+            scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
+            scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+            
+            # Set scene rect to exactly match the image size
+            self.parent.scene.setSceneRect(0, 0, width, height)
+            
+            # Use the helper method to fit image
+            self.fit_image_to_view()
+            
+            # Clear any existing shape selection
+            if hasattr(self.parent, 'tool_manager'):
+                current_tool = self.parent.tool_manager.current_tool
+                if current_tool and hasattr(current_tool, 'shape_handler'):
+                    current_tool.shape_handler.clear_selection()
         else:
             # Use original PIL Image
             original_image = self.images.get(file_path)
@@ -330,29 +381,29 @@ class ImageHandler:
                     qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
                 pixmap = QPixmap.fromImage(qimage)
                 
+                # Add pixmap to scene
+                scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
+                scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+                
+                # Set scene rect to exactly match the image size
+                self.parent.scene.setSceneRect(0, 0, width, height)
+                
+                # Use the helper method to fit image
+                self.fit_image_to_view()
+                
                 # Store original dimensions
                 width, height = original_image.size
         
-        if pixmap and not pixmap.isNull():
-            # Update the scene with exact image size
-            self.parent.scene.clear()
-            scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
-            scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
-            
-            # Set scene rect to exactly match the image size
-            self.parent.scene.setSceneRect(QRectF(0, 0, width, height))
-            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
-            
-            # Update current image reference
-            self.current_image = self.images.get(file_path)
-            
-            # Update info labels with correct dimensions and file size
-            self.parent.size_label.setText(f"Size: {width} × {height}px")
-            self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
-            
-            # Adjust line width for drawing tools based on actual image size
-            diagonal = (width**2 + height**2)**0.5
-            self._update_tool_sizes(diagonal)
+        # Update current image reference
+        self.current_image = self.images.get(file_path)
+        
+        # Update info labels with correct dimensions and file size
+        self.parent.size_label.setText(f"Size: {width} × {height}px")
+        self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
+        
+        # Adjust line width for drawing tools based on actual image size
+        diagonal = (width**2 + height**2)**0.5
+        self._update_tool_sizes(diagonal)
 
     def update_preview_and_info(self, file_path):
         """Update the preview area and info labels with current image"""
@@ -396,11 +447,11 @@ class ImageHandler:
             
             # Add edited pixmap
             edited_pixmap = self.edited_images[file_path]
-            self.parent.scene.addPixmap(edited_pixmap)
+            scene_pixmap_item = self.parent.scene.addPixmap(edited_pixmap)
+            scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
             
-            # Set scene rect and fit view
-            self.parent.view.setSceneRect(QRectF(edited_pixmap.rect()))
-            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            # Use helper method to fit image
+            self.fit_image_to_view()
             
             # Update dimensions and file size
             current_width, current_height = self.current_dimensions[file_path]
@@ -410,34 +461,47 @@ class ImageHandler:
             self.parent.size_label.setText(f"Size: {current_width} × {current_height}px")
             self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
             
-            self.aspect_ratio = current_width / current_height 
+            self.aspect_ratio = current_width / current_height
 
     def save_state(self):
         """Save current state to history"""
-        # Find the pixmap item
-        for item in self.parent.scene.items():
-            if isinstance(item, QGraphicsPixmapItem):
-                current_item = self.parent.image_list.currentItem()
-                if current_item:
-                    file_path = self.get_file_path_from_item(current_item)
-                    if file_path:
-                        # Save current state
-                        state = {
-                            'pixmap': item.pixmap().copy(),
-                            'dimensions': self.current_dimensions[file_path],
-                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
-                        }
-                        self.history.append(state)
-                        if len(self.history) > self.max_history:
-                            self.history.pop(0)
-                        
-                        # Clear redo stack when new action is performed
-                        self.redo_stack.clear()
-                        
-                        # Update button states
-                        self.parent.toolbar.undo_btn.setEnabled(True)
-                        self.parent.toolbar.redo_btn.setEnabled(False)
-                        break
+        current_item = self.parent.image_list.currentItem()
+        if not current_item:
+            return
+        
+        file_path = self.get_file_path_from_item(current_item)
+        if not file_path:
+            return
+        
+        # Capture the entire scene including shapes
+        scene_rect = self.parent.scene.sceneRect()
+        temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
+        temp_pixmap.fill(Qt.white)
+        painter = QPainter(temp_pixmap)
+        self.parent.scene.render(painter)
+        painter.end()
+        
+        # Store the state
+        state = {
+            'pixmap': temp_pixmap.copy(),
+            'dimensions': self.current_dimensions[file_path],
+            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+        }
+        
+        # Save to history
+        self.history.append(state)
+        if len(self.history) > self.max_history:
+            self.history.pop(0)
+        
+        # Clear redo stack when new action is performed
+        self.redo_stack.clear()
+        
+        # Update button states
+        self.parent.toolbar.undo_btn.setEnabled(True)
+        self.parent.toolbar.redo_btn.setEnabled(False)
+        
+        # Store the edited version
+        self.edited_images[file_path] = temp_pixmap.copy()
 
     def update_info_label(self):
         """Update the info labels with current image information"""
@@ -750,8 +814,8 @@ class ImageHandler:
             line_width = base_line_width / resize_factor
             arrow_size = base_arrow_size / resize_factor
         else:  # Original size
-            line_width = 20  # Fixed line width for original size
-            arrow_size = 40  # Fixed arrow size for original size
+            line_width = 10  # Fixed line width for original size
+            arrow_size = 20  # Fixed arrow size for original size
         
         # Set sizes for all tools
         for tool_name, tool in self.parent.tool_manager.tools.items():
