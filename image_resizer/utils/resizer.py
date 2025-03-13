@@ -10,28 +10,49 @@ class ImageResizer:
         if not image:
             return None
 
-        # Get original dimensions
-        width, height = image.size
-        print(f"Original size: {width}x{height}")
+        try:
+            # Ensure we're working with a copy
+            image = image.copy()
+            
+            # Get original dimensions
+            width, height = image.size
+            print(f"Original dimensions: {width}x{height}")
 
-        # Get resize factor based on preset
-        if size_preset == "Small":
-            resize_factor = 4  # Resize 4 times smaller
-        elif size_preset == "Medium":
-            resize_factor = 3  # Resize 3 times smaller
-        elif size_preset == "Large":
-            resize_factor = 2  # Resize 2 times smaller
-        else:
-            print(f"Unknown size preset: {size_preset}")
-            return image.copy()
+            # Extract preset name without percentage
+            preset_name = size_preset.split(" ")[0]
 
-        # Calculate new dimensions
-        new_width = int(width / resize_factor)
-        new_height = int(height / resize_factor)
-        print(f"Size preset: {size_preset}, Factor: {resize_factor}")
-        print(f"New size: {new_width}x{new_height}")
+            # Calculate new dimensions based on preset
+            if preset_name == "Small":
+                scale = 0.25
+            elif preset_name == "Medium":
+                scale = 0.33
+            elif preset_name == "Large":
+                scale = 0.50
+            elif preset_name == "Original":
+                return image
+            else:
+                print(f"Unknown preset: {size_preset}")
+                return image
 
-        return image.resize((new_width, new_height), Image.LANCZOS)
+            # Calculate new dimensions
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            
+            # Ensure minimum dimensions
+            new_width = max(new_width, 1)
+            new_height = max(new_height, 1)
+            
+            print(f"Resizing to: {new_width}x{new_height}")
+            
+            # Perform the resize with high-quality resampling
+            resized = image.resize((new_width, new_height), Image.LANCZOS)
+            print(f"Final dimensions: {resized.size}")
+            
+            return resized
+
+        except Exception as e:
+            print(f"Error in resize_single: {str(e)}")
+            return image
 
     def save_image(self, image, save_path, quality=80):
         """Save image with appropriate settings based on format"""
