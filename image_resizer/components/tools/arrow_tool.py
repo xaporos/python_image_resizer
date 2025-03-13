@@ -19,35 +19,36 @@ class ArrowLineItem(QGraphicsLineItem):
         painter.setPen(self.pen())
         painter.drawLine(self.line())
         
-        # Get line in scene coordinates for consistent arrow head calculation
-        line_p1 = self.mapToScene(self.line().p1())
-        line_p2 = self.mapToScene(self.line().p2())
+        # Calculate arrow head points in scene coordinates
+        line = self.line()
+        p1_scene = self.mapToScene(line.p1())
+        p2_scene = self.mapToScene(line.p2())
         
         # Calculate angle in scene coordinates
-        dx = line_p2.x() - line_p1.x()
-        dy = line_p2.y() - line_p1.y()
+        dx = p2_scene.x() - p1_scene.x()
+        dy = p2_scene.y() - p1_scene.y()
         angle = math.atan2(dy, dx)
         
         # Calculate arrow head points in scene coordinates
-        arrow_p1 = QPointF(
-            line_p2.x() - self._arrow_size * math.cos(angle + math.pi/6),
-            line_p2.y() - self._arrow_size * math.sin(angle + math.pi/6)
+        arrow_p1_scene = QPointF(
+            p2_scene.x() - self._arrow_size * math.cos(angle + math.pi/6),
+            p2_scene.y() - self._arrow_size * math.sin(angle + math.pi/6)
         )
         
-        arrow_p2 = QPointF(
-            line_p2.x() - self._arrow_size * math.cos(angle - math.pi/6),
-            line_p2.y() - self._arrow_size * math.sin(angle - math.pi/6)
+        arrow_p2_scene = QPointF(
+            p2_scene.x() - self._arrow_size * math.cos(angle - math.pi/6),
+            p2_scene.y() - self._arrow_size * math.sin(angle - math.pi/6)
         )
         
-        # Convert back to item coordinates for drawing
-        arrow_p1 = self.mapFromScene(arrow_p1)
-        arrow_p2 = self.mapFromScene(arrow_p2)
+        # Convert scene coordinates to item coordinates for drawing
+        arrow_p1 = self.mapFromScene(arrow_p1_scene)
+        arrow_p2 = self.mapFromScene(arrow_p2_scene)
         
         # Store points in scene coordinates for the base shape handler
-        self.setData(2, [self.mapToScene(arrow_p1), self.mapToScene(arrow_p2)])
+        self.setData(2, [arrow_p1_scene, arrow_p2_scene])
         self.setData(3, angle)
         
-        # Draw the arrow head in item coordinates
+        # Draw the arrow head
         painter.drawLine(self.line().p2(), arrow_p1)
         painter.drawLine(self.line().p2(), arrow_p2)
 

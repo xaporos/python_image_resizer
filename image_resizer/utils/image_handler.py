@@ -77,25 +77,36 @@ class ImageHandler:
             if not file_path:
                 return
 
-            # Get source image (either edited or original)
-            source_image = None
-            if file_path in self.edited_images:
-                # Convert QPixmap to PIL Image
-                pixmap = self.edited_images[file_path]
-                temp_buffer = QByteArray()
-                buffer = QBuffer(temp_buffer)
-                buffer.open(QBuffer.WriteOnly)
-                pixmap.save(buffer, 'PNG')
-                buffer.close()
-                source_image = Image.open(BytesIO(temp_buffer.data()))
-            else:
-                source_image = self.images[file_path].copy()
+            # Save state before updating
+            self.save_state()
+            
+            # Capture the entire scene including shapes
+            scene_rect = self.parent.scene.sceneRect()
+            temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
+            temp_pixmap.fill(Qt.white)  # Fill with white background instead of transparent
+            painter = QPainter(temp_pixmap)
+            self.parent.scene.render(painter)
+            painter.end()
+            
+            # Convert QPixmap to PIL Image for resizing
+            temp_buffer = QByteArray()
+            buffer = QBuffer(temp_buffer)
+            buffer.open(QBuffer.WriteOnly)
+            temp_pixmap.save(buffer, 'PNG')
+            buffer.close()
+            source_image = Image.open(BytesIO(temp_buffer.data()))
+            
+            # Convert to RGB mode if necessary
+            if source_image.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', source_image.size, 'white')
+                if source_image.mode == 'RGBA':
+                    background.paste(source_image, mask=source_image.split()[3])
+                else:
+                    background.paste(source_image, mask=source_image.split()[1])
+                source_image = background
 
             # Print original dimensions
             print(f"Before resize - Image dimensions: {source_image.size}")
-
-            # Save state before updating
-            self.save_state()
             
             # Resize image
             resized_image = self.resizer.resize_single(source_image, size_preset)
@@ -108,25 +119,20 @@ class ImageHandler:
             
             # Convert PIL Image to QPixmap
             img_array = np.array(resized_image)
-            if len(img_array.shape) == 3:  # Color image
-                height, width, channels = img_array.shape
-                bytes_per_line = channels * width
-                qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
-            else:  # Grayscale image
-                height, width = img_array.shape
-                bytes_per_line = width
-                qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+            height, width, channels = img_array.shape
+            bytes_per_line = channels * width
+            qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
             
             pixmap = QPixmap.fromImage(qimage)
             print(f"After conversion - QPixmap dimensions: {pixmap.width()}x{pixmap.height()}")
             
-            # Update scene with exact image size
+            # Clear scene and add new pixmap
             self.parent.scene.clear()
             scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
             scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
             
-            # Set scene rect to exactly match the pixmap size
-            self.parent.scene.setSceneRect(QRectF(0, 0, actual_width, actual_height))
+            # Set scene rect to match the new image size
+            self.parent.scene.setSceneRect(0, 0, actual_width, actual_height)
             
             # Store edited version and update dimensions
             self.edited_images[file_path] = pixmap
@@ -141,9 +147,14 @@ class ImageHandler:
             self.parent.size_label.setText(f"Size: {actual_width} × {actual_height}px")
             self.parent.file_size_label.setText(f"File size: {self.edited_file_sizes[file_path]:.2f}MB")
             
-            # Fit view to the new image size
+            # Reset view transform and fit to view
+            self.parent.view.resetTransform()
             self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            
+            # Process events to ensure view is updated
             QApplication.processEvents()
+            
+            # Fit view again after processing events
             self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
             
             # Mark as modified

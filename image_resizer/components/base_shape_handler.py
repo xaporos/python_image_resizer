@@ -349,21 +349,29 @@ class BaseShapeHandler:
                 
                 # Update arrow head if this is an arrow
                 if self.selected_shape.data(0) == "arrow":
-                    angle = math.atan2(new_line.dy(), new_line.dx())
+                    # Get points in scene coordinates
+                    p1_scene = self.selected_shape.mapToScene(new_line.p1())
+                    p2_scene = self.selected_shape.mapToScene(new_line.p2())
+                    
+                    # Calculate angle in scene coordinates
+                    dx = p2_scene.x() - p1_scene.x()
+                    dy = p2_scene.y() - p1_scene.y()
+                    angle = math.atan2(dy, dx)
+                    
                     arrow_size = self.selected_shape.data(1)
                     
-                    # Recalculate arrow head points
-                    arrow_p1 = QPointF(
-                        new_line.p2().x() - arrow_size * math.cos(angle + math.pi/6),
-                        new_line.p2().y() - arrow_size * math.sin(angle + math.pi/6)
+                    # Calculate arrow head points in scene coordinates
+                    arrow_p1_scene = QPointF(
+                        p2_scene.x() - arrow_size * math.cos(angle + math.pi/6),
+                        p2_scene.y() - arrow_size * math.sin(angle + math.pi/6)
                     )
-                    arrow_p2 = QPointF(
-                        new_line.p2().x() - arrow_size * math.cos(angle - math.pi/6),
-                        new_line.p2().y() - arrow_size * math.sin(angle - math.pi/6)
+                    arrow_p2_scene = QPointF(
+                        p2_scene.x() - arrow_size * math.cos(angle - math.pi/6),
+                        p2_scene.y() - arrow_size * math.sin(angle - math.pi/6)
                     )
                     
-                    # Update stored arrow head points
-                    self.selected_shape.setData(2, [arrow_p1, arrow_p2])
+                    # Update stored arrow head points in scene coordinates
+                    self.selected_shape.setData(2, [arrow_p1_scene, arrow_p2_scene])
                     self.selected_shape.setData(3, angle)
             else:
                 # For circles and rectangles, use the same coordinate handling as lines
@@ -393,19 +401,29 @@ class BaseShapeHandler:
             # Update arrow head if needed
             if isinstance(self.selected_shape, QGraphicsLineItem) and self.selected_shape.data(0) == "arrow":
                 line = self.selected_shape.line()
-                angle = math.atan2(line.dy(), line.dx())
+                # Get points in scene coordinates after move
+                p1_scene = self.selected_shape.mapToScene(line.p1())
+                p2_scene = self.selected_shape.mapToScene(line.p2())
+                
+                # Calculate angle in scene coordinates
+                dx = p2_scene.x() - p1_scene.x()
+                dy = p2_scene.y() - p1_scene.y()
+                angle = math.atan2(dy, dx)
+                
                 arrow_size = self.selected_shape.data(1)
                 
-                arrow_p1 = QPointF(
-                    line.p2().x() - arrow_size * math.cos(angle + math.pi/6),
-                    line.p2().y() - arrow_size * math.sin(angle + math.pi/6)
+                # Calculate arrow head points in scene coordinates
+                arrow_p1_scene = QPointF(
+                    p2_scene.x() - arrow_size * math.cos(angle + math.pi/6),
+                    p2_scene.y() - arrow_size * math.sin(angle + math.pi/6)
                 )
-                arrow_p2 = QPointF(
-                    line.p2().x() - arrow_size * math.cos(angle - math.pi/6),
-                    line.p2().y() - arrow_size * math.sin(angle - math.pi/6)
+                arrow_p2_scene = QPointF(
+                    p2_scene.x() - arrow_size * math.cos(angle - math.pi/6),
+                    p2_scene.y() - arrow_size * math.sin(angle - math.pi/6)
                 )
                 
-                self.selected_shape.setData(2, [arrow_p1, arrow_p2])
+                # Update stored arrow head points in scene coordinates
+                self.selected_shape.setData(2, [arrow_p1_scene, arrow_p2_scene])
                 self.selected_shape.setData(3, angle)
             
             self.update_resize_handles()
