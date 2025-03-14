@@ -5,12 +5,10 @@ import math
 
 class BaseShapeHandler:
     def __init__(self, app):
-        print("\nBaseShapeHandler initialized")  # Debug print
         self.app = app
         self.selected_shape = None
         self.resize_handles = []
         self._handle_size = 16
-        print(f"Initial _handle_size set to: {self._handle_size}")
         self.resizing = False
         self.moving = False
         self.resize_handle = None
@@ -21,14 +19,11 @@ class BaseShapeHandler:
 
     @property
     def handle_size(self):
-        print(f"Getting handle_size: {self._handle_size}")
         return self._handle_size
 
     @handle_size.setter
     def handle_size(self, value):
-        print(f"\nAttempting to set handle_size to {value}")
         import traceback
-        print("Stack trace:")
         for line in traceback.format_stack():
             if 'image_resizer' in line:  # Only show our code's stack trace
                 print(line.strip())
@@ -200,6 +195,14 @@ class BaseShapeHandler:
         # Apply view scale
         actual_size = actual_size / view_scale
         
+        # Determine if the current image is resized
+        current_item = self.app.image_list.currentItem()
+        file_path = self.app.image_handler.get_file_path_from_item(current_item)
+        is_resized = file_path in self.app.image_handler.resized_images
+        
+        # Set border width based on resize state
+        border_width = 1.5 if is_resized else 4
+        
         positions = []
         if isinstance(item, QGraphicsLineItem):
             line = item.line()
@@ -220,7 +223,8 @@ class BaseShapeHandler:
             handle = QGraphicsRectItem()
             half_size = actual_size / 2
             handle.setRect(-half_size, -half_size, actual_size, actual_size)
-            handle.setPen(QPen(Qt.black, 2))
+            # Set border width based on whether image is resized
+            handle.setPen(QPen(Qt.black, border_width))
             handle.setBrush(QBrush(Qt.white))
             handle.setPos(pos)
             handle.setZValue(5)
@@ -280,21 +284,32 @@ class BaseShapeHandler:
 
     def clear_selection(self):
         """Clear current selection and handles"""
-        # Remove all handles
-        for handle in self.resize_handles:
-            if handle.scene():
-                self.app.scene.removeItem(handle)
-        self.resize_handles.clear()
-        
-        # Reset state
-        self.selected_shape = None
-        self.resizing = False
-        self.moving = False
-        self.resize_handle = None
-        self.start_pos = None
-        self.original_rect = None
-        self.initial_shape_pos = None
-        self.initial_geometry = None
+        try:
+            # Remove all handles safely
+            for handle in self.resize_handles[:]:  # Create a copy of the list to iterate
+                try:
+                    if handle and not handle.isNull():  # Check if handle is valid
+                        if handle.scene():
+                            self.app.scene.removeItem(handle)
+                except RuntimeError:
+                    # Handle was already deleted, skip it
+                    pass
+            self.resize_handles.clear()
+            
+            # Reset state
+            self.selected_shape = None
+            self.resizing = False
+            self.moving = False
+            self.resize_handle = None
+            self.start_pos = None
+            self.original_rect = None
+            self.initial_shape_pos = None
+            self.initial_geometry = None
+        except Exception as e:
+            print(f"Error in clear_selection: {str(e)}")
+            # Ensure we still clear the list and reset state even if an error occurs
+            self.resize_handles.clear()
+            self.selected_shape = None
 
     def handle_mouse_press(self, event, pos):
         """Handle mouse press for shape resizing"""

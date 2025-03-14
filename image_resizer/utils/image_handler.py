@@ -10,9 +10,9 @@ from io import BytesIO
 class ImageHandler:
     def __init__(self, parent):
         self.parent = parent
-        self.images = {}
+        self.images = {}  # Original images
         self.current_image = None
-        self.edited_images = {}
+        self.edited_images = {}  # Images with edits (shapes, resizing)
         self.edited_file_sizes = {}
         self.original_dimensions = {}
         self.current_dimensions = {}
@@ -25,6 +25,8 @@ class ImageHandler:
         self.max_history = 10
         self.resizer = ImageResizer()
         self.modified = False
+        self.resized_images = set()  # Track which images have been resized
+        self.view_scale = {}  # Track view scale for each image
         
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -83,7 +85,7 @@ class ImageHandler:
             # Capture the entire scene including shapes
             scene_rect = self.parent.scene.sceneRect()
             temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
-            temp_pixmap.fill(Qt.white)  # Fill with white background instead of transparent
+            temp_pixmap.fill(Qt.white)
             painter = QPainter(temp_pixmap)
             self.parent.scene.render(painter)
             painter.end()
@@ -105,9 +107,6 @@ class ImageHandler:
                     background.paste(source_image, mask=source_image.split()[1])
                 source_image = background
 
-            # Print original dimensions
-            print(f"Before resize - Image dimensions: {source_image.size}")
-            
             # Resize image
             resized_image = self.resizer.resize_single(source_image, size_preset)
             if not resized_image:
@@ -115,16 +114,13 @@ class ImageHandler:
 
             # Get actual dimensions from the resized image
             actual_width, actual_height = resized_image.size
-            print(f"After resize - PIL Image dimensions: {resized_image.size}")
             
             # Convert PIL Image to QPixmap
             img_array = np.array(resized_image)
             height, width, channels = img_array.shape
             bytes_per_line = channels * width
             qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
-            
             pixmap = QPixmap.fromImage(qimage)
-            print(f"After conversion - QPixmap dimensions: {pixmap.width()}x{pixmap.height()}")
             
             # Clear scene and add new pixmap
             self.parent.scene.clear()
@@ -137,35 +133,31 @@ class ImageHandler:
             # Store edited version and update dimensions
             self.edited_images[file_path] = pixmap
             self.current_dimensions[file_path] = (actual_width, actual_height)
+            self.resized_images.add(file_path)  # Mark as resized
             
             # Calculate and store file size
             img_byte_arr = BytesIO()
             resized_image.save(img_byte_arr, format='JPEG', quality=quality)
             self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
             
-            # Update info labels with actual dimensions and new file size
+            # Update info labels
             self.parent.size_label.setText(f"Size: {actual_width} × {actual_height}px")
             self.parent.file_size_label.setText(f"File size: {self.edited_file_sizes[file_path]:.2f}MB")
             
             # Reset view transform and fit to view
             self.parent.view.resetTransform()
-            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            self.fit_image_to_view()
             
-            # Process events to ensure view is updated
-            QApplication.processEvents()
-            
-            # Fit view again after processing events
-            self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            # Store view scale
+            self.view_scale[file_path] = self.parent.view.transform().m11()
             
             # Mark as modified
             self.modified = True
             
-            # Adjust line width for drawing tools based on actual image size
+            # Update tool sizes with new dimensions
             diagonal = (actual_width**2 + actual_height**2)**0.5
             self._update_tool_sizes(diagonal)
             
-            print(f"Final dimensions stored: {self.current_dimensions[file_path]}")
-        
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
 
@@ -319,8 +311,17 @@ class ImageHandler:
                 
                 # Fit in view while maintaining aspect ratio
                 self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+                
                 # Process events to ensure view is updated
                 QApplication.processEvents()
+                
+                # Store the view scale for the current image
+                current_item = self.parent.image_list.currentItem()
+                if current_item:
+                    file_path = self.get_file_path_from_item(current_item)
+                    if file_path:
+                        self.view_scale[file_path] = self.parent.view.transform().m11()
+                
                 # Reset scrollbars again and fit view again
                 self.parent.view.horizontalScrollBar().setValue(0)
                 self.parent.view.verticalScrollBar().setValue(0)
@@ -344,7 +345,7 @@ class ImageHandler:
             # Use edited version with all its modifications
             pixmap = self.edited_images[file_path]
             width, height = self.current_dimensions[file_path]
-            file_size = self.edited_file_sizes.get(file_path, 0)
+            file_size = self.edited_file_sizes.get(file_path, self.file_sizes.get(file_path, 0))
             
             # Add pixmap to scene
             scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
@@ -365,20 +366,23 @@ class ImageHandler:
             # Use original PIL Image
             original_image = self.images.get(file_path)
             if original_image:
-                # Get original dimensions and file size
-                width, height = original_image.size
+                # Store original dimensions first
+                orig_width, orig_height = original_image.size
+                self.current_dimensions[file_path] = (orig_width, orig_height)
+                
+                # Get file size
                 file_size = self.file_sizes.get(file_path, 0)
                 
                 # Convert PIL Image to QPixmap
                 img_array = np.array(original_image)
                 if len(img_array.shape) == 3:  # Color image
-                    height, width, channels = img_array.shape
-                    bytes_per_line = channels * width
-                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                    array_height, array_width, channels = img_array.shape
+                    bytes_per_line = channels * array_width
+                    qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
                 else:  # Grayscale image
-                    height, width = img_array.shape
-                    bytes_per_line = width
-                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                    array_height, array_width = img_array.shape
+                    bytes_per_line = array_width
+                    qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
                 pixmap = QPixmap.fromImage(qimage)
                 
                 # Add pixmap to scene
@@ -386,13 +390,13 @@ class ImageHandler:
                 scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
                 
                 # Set scene rect to exactly match the image size
-                self.parent.scene.setSceneRect(0, 0, width, height)
+                self.parent.scene.setSceneRect(0, 0, orig_width, orig_height)
                 
                 # Use the helper method to fit image
                 self.fit_image_to_view()
                 
-                # Store original dimensions
-                width, height = original_image.size
+                # Use original dimensions for labels and calculations
+                width, height = orig_width, orig_height
         
         # Update current image reference
         self.current_image = self.images.get(file_path)
@@ -401,9 +405,13 @@ class ImageHandler:
         self.parent.size_label.setText(f"Size: {width} × {height}px")
         self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
         
-        # Adjust line width for drawing tools based on actual image size
-        diagonal = (width**2 + height**2)**0.5
-        self._update_tool_sizes(diagonal)
+        # Adjust line width for drawing tools based on actual image dimensions
+        actual_diagonal = (width**2 + height**2)**0.5
+        self._update_tool_sizes(actual_diagonal)
+        
+        # Update the edited_file_sizes if it's not set
+        if file_path not in self.edited_file_sizes:
+            self.edited_file_sizes[file_path] = self.file_sizes.get(file_path, 0)
 
     def update_preview_and_info(self, file_path):
         """Update the preview area and info labels with current image"""
@@ -485,7 +493,9 @@ class ImageHandler:
         state = {
             'pixmap': temp_pixmap.copy(),
             'dimensions': self.current_dimensions[file_path],
-            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
+            'file_size': self.file_sizes[file_path],  # Use original file size
+            'is_resized': file_path in self.resized_images,  # Store resize state
+            'view_scale': self.view_scale.get(file_path, 1.0)  # Store view scale
         }
         
         # Save to history
@@ -502,6 +512,9 @@ class ImageHandler:
         
         # Store the edited version
         self.edited_images[file_path] = temp_pixmap.copy()
+        
+        # Update info labels
+        self.update_info_label()
 
     def update_info_label(self):
         """Update the info labels with current image information"""
@@ -654,6 +667,7 @@ class ImageHandler:
             return
         
         success_count = 0
+        failed_count = 0
         quality = self.parent.toolbar.quality_slider.value()
         
         # Store current selection to restore later
@@ -661,27 +675,81 @@ class ImageHandler:
         
         try:
             # Process each image in the list
-            for i in range(self.parent.image_list.count()):
+            total_images = self.parent.image_list.count()
+            print(f"Total images to process: {total_images}")
+            
+            for i in range(total_images):
                 item = self.parent.image_list.item(i)
                 file_path = self.get_file_path_from_item(item)
                 
-                if file_path not in self.edited_images:
+                if not file_path:
+                    print(f"Could not get file path for item {i}")
                     continue
                     
-                # Get the edited pixmap for this image
-                pixmap = self.edited_images[file_path]
-                base_name = os.path.basename(file_path)
-                save_path = os.path.join(output_dir, f"edited_{base_name}")
+                print(f"Processing image {i + 1}/{total_images}: {os.path.basename(file_path)}")
                 
-                # Save with quality setting
-                if save_path.lower().endswith(('.jpg', '.jpeg')):
-                    pixmap.save(save_path, 'JPEG', quality)
+                # Get the pixmap to save - either edited or original
+                pixmap = None
+                if file_path in self.edited_images:
+                    print(f"Using edited version for: {os.path.basename(file_path)}")
+                    pixmap = self.edited_images[file_path]
                 else:
-                    pixmap.save(save_path, 'PNG')
-                    
-                success_count += 1
+                    print(f"Using original version for: {os.path.basename(file_path)}")
+                    # Use original PIL Image directly
+                    original_image = self.images.get(file_path)
+                    if original_image:
+                        # Save original image with original size
+                        base_name = os.path.basename(file_path)
+                        original_ext = os.path.splitext(file_path)[1].lower()
+                        save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
+                        
+                        try:
+                            if original_ext.lower() in ('.jpg', '.jpeg'):
+                                original_image.save(save_path, 'JPEG', quality=quality)
+                            else:
+                                original_image.save(save_path, original_image.format)
+                            success_count += 1
+                            print(f"Successfully saved original: {os.path.basename(save_path)}")
+                        except Exception as e:
+                            print(f"Failed to save {os.path.basename(save_path)}: {str(e)}")
+                            failed_count += 1
+                        continue
                 
+                if not pixmap:
+                    print(f"No pixmap found for: {os.path.basename(file_path)}")
+                    failed_count += 1
+                    continue
+                    
+                base_name = os.path.basename(file_path)
+                
+                # Ensure proper file extension is preserved
+                original_ext = os.path.splitext(file_path)[1].lower()
+                if not original_ext:
+                    print(f"No extension found, using .jpg for: {base_name}")
+                    original_ext = '.jpg'
+                elif original_ext not in ['.jpg', '.jpeg', '.png']:
+                    print(f"Unsupported extension {original_ext}, converting to .jpg for: {base_name}")
+                    original_ext = '.jpg'
+                
+                # Create save path with proper extension
+                save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
+                print(f"Saving to: {save_path}")
+                
+                try:
+                    # Save with quality setting
+                    if original_ext.lower() in ('.jpg', '.jpeg'):
+                        pixmap.save(save_path, 'JPEG', quality)
+                    else:
+                        pixmap.save(save_path, 'PNG')  # PNG doesn't use quality
+                        
+                    success_count += 1
+                    print(f"Successfully saved: {os.path.basename(save_path)}")
+                except Exception as e:
+                    print(f"Failed to save {os.path.basename(save_path)}: {str(e)}")
+                    failed_count += 1
+                    
         except Exception as e:
+            print(f"Error in save_all: {str(e)}")
             QMessageBox.warning(
                 self.parent,
                 "Warning",
@@ -692,12 +760,22 @@ class ImageHandler:
             if current_item:
                 self.parent.image_list.setCurrentItem(current_item)
         
+        # Show final results
         if success_count > 0:
+            message = f"Successfully saved {success_count} images to {output_dir}!"
+            if failed_count > 0:
+                message += f"\nFailed to save {failed_count} images."
             QMessageBox.information(
                 self.parent,
                 "Success",
-                f"Successfully saved {success_count} images to {output_dir}!"
-            ) 
+                message
+            )
+        elif failed_count > 0:
+            QMessageBox.warning(
+                self.parent,
+                "Warning",
+                f"Failed to save any images. {failed_count} images failed."
+            )
 
     def rename_image(self, old_name, new_name):
         """Rename image file in the list"""
@@ -793,37 +871,58 @@ class ImageHandler:
         if not hasattr(self.parent, 'tool_manager'):
             return
 
-        # Get current size preset
-        size_preset = self.parent.toolbar.size_combo.currentText()
+        # Get current item and file path
+        current_item = self.parent.image_list.currentItem()
+        if not current_item:
+            return
         
-        # Base sizes (before any resize)
-        base_line_width = 8  # Increased base width
-        base_arrow_size = 45
+        file_path = self.get_file_path_from_item(current_item)
+        if not file_path:
+            return
         
-        # Get resize factor and set sizes
-        if size_preset == "Small":
-            resize_factor = 4
-            line_width = base_line_width / resize_factor
-            arrow_size = base_arrow_size / resize_factor
-        elif size_preset == "Medium":
-            resize_factor = 3
-            line_width = base_line_width / resize_factor
-            arrow_size = base_arrow_size / resize_factor
-        elif size_preset == "Large":
-            resize_factor = 2
-            line_width = base_line_width / resize_factor
-            arrow_size = base_arrow_size / resize_factor
-        else:  # Original size
-            line_width = 10  # Fixed line width for original size
-            arrow_size = 20  # Fixed arrow size for original size
+        # Get actual image dimensions
+        actual_width, actual_height = self.current_dimensions.get(file_path, (0, 0))
+        if actual_width == 0 or actual_height == 0:
+            return
         
-        # Set sizes for all tools
+        # Calculate actual diagonal based on real image dimensions
+        actual_diagonal = (actual_width**2 + actual_height**2)**0.5
+        
+        # Use fixed scale factor of 1 for handles as it works well
+        handle_scale_factor = 1.0
+        
+        # For lines, use a scale factor based on whether the image is resized
+        if file_path in self.resized_images:
+            line_scale_factor = 1.0
+        else:
+            line_scale_factor = 3.0  # Higher scale factor for unresized images
+        
+        # Base sizes - different for lines and handles
+        base_line_width = 2
+        base_handle_size = 8
+        base_arrow_size = 15
+        
+        # Get view scale for this image
+        view_scale = self.view_scale.get(file_path, 1.0)
+        
+        # Calculate final sizes with different scale factors
+        line_width = max(1, base_line_width * line_scale_factor)
+        handle_size = max(4, base_handle_size * handle_scale_factor)
+        arrow_size = max(8, base_arrow_size * line_scale_factor)  # Arrow size follows line scaling
+        
+        print(f"Image dimensions: {actual_width}x{actual_height}")
+        print(f"Line scale factor: {line_scale_factor:.2f}")
+        print(f"Handle scale factor: {handle_scale_factor:.2f}")
+        print(f"View scale: {view_scale:.2f}")
+        print(f"Is resized: {file_path in self.resized_images}")
+        print(f"Has shapes: {file_path in self.edited_images}")
+        print(f"Calculated sizes - Line: {line_width:.2f}, Handle: {handle_size:.2f}, Arrow: {arrow_size:.2f}")
+        
+        # Update sizes for all tools
         for tool_name, tool in self.parent.tool_manager.tools.items():
             if hasattr(tool, 'line_width'):
                 tool.line_width = line_width
-                
                 if tool_name == 'arrow' and hasattr(tool, 'arrow_size'):
                     tool.arrow_size = arrow_size
-                
             if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                tool.shape_handler.handle_size = 8 
+                tool.shape_handler.handle_size = handle_size 
