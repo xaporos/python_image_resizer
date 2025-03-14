@@ -74,24 +74,22 @@ class BaseShapeHandler:
             if not self.selected_shape or not self.selected_shape.scene():
                 return
 
-            # Save state before making permanent changes
-            self.app.image_handler.save_state()
-
             # Get shape data before cleanup
             shape = self.selected_shape
             pen = shape.pen()
             
-            # Clean up handles first
+            # First remove all handles from scene
             self.clear_handles()
-
-            # Find the pixmap item
+            
+            # Find the pixmap item and create a clean copy
             pixmap = None
             for item in self.app.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
                     pixmap = item.pixmap().copy()
                     break
-                
+                    
             if pixmap and shape.scene():
+                # Create a new painter for the pixmap
                 painter = QPainter(pixmap)
                 painter.setPen(pen)
                 painter.setRenderHint(QPainter.Antialiasing)
@@ -121,24 +119,28 @@ class BaseShapeHandler:
                 
                 painter.end()
                 
-                # Update scene
+                # Save state before updating scene
+                self.app.image_handler.save_state()
+                
+                # Update scene with clean pixmap
                 self.app.scene.clear()
                 self.app.scene.addPixmap(pixmap)
 
-                # Deselect the current tool
-                if hasattr(self.app, 'tool_manager'):
-                    self.app.tool_manager.set_tool(None)
-                    # Uncheck all tool buttons
-                    if hasattr(self.app.toolbar, 'arrow_btn'):
-                        self.app.toolbar.arrow_btn.setChecked(False)
-                    if hasattr(self.app.toolbar, 'circle_btn'):
-                        self.app.toolbar.circle_btn.setChecked(False)
-                    if hasattr(self.app.toolbar, 'rect_btn'):
-                        self.app.toolbar.rect_btn.setChecked(False)
-        except:
-            pass
+            # Deselect the current tool
+            if hasattr(self.app, 'tool_manager'):
+                self.app.tool_manager.set_tool(None)
+                # Uncheck all tool buttons
+                if hasattr(self.app.toolbar, 'arrow_btn'):
+                    self.app.toolbar.arrow_btn.setChecked(False)
+                if hasattr(self.app.toolbar, 'circle_btn'):
+                    self.app.toolbar.circle_btn.setChecked(False)
+                if hasattr(self.app.toolbar, 'rect_btn'):
+                    self.app.toolbar.rect_btn.setChecked(False)
+        except Exception as e:
+            print(f"Error in finalize_shape: {str(e)}")
         finally:
-            # Always clear selection
+            # Always clear selection and handles
+            self.clear_handles()
             self.selected_shape = None
 
     def calculate_new_rect(self, pos, handle_index):
@@ -172,10 +174,7 @@ class BaseShapeHandler:
     def create_resize_handles(self, item):
         print(f"\nCreating handles with size: {self._handle_size}")
         # Clear any existing handles
-        for handle in self.resize_handles:
-            if handle.scene():
-                self.app.scene.removeItem(handle)
-        self.resize_handles = []
+        self.clear_handles()
         
         # Get both view and image scales
         view_scale = self.app.view.transform().m11()
@@ -195,22 +194,42 @@ class BaseShapeHandler:
         # Apply view scale
         actual_size = actual_size / view_scale
         
-        # Determine if the current image is resized
-        current_item = self.app.image_list.currentItem()
-        file_path = self.app.image_handler.get_file_path_from_item(current_item)
-        is_resized = file_path in self.app.image_handler.resized_images
+        # Store reference to the shape
+        self.selected_shape = item
         
-        # Set border width based on resize state
-        border_width = 1.5 if is_resized else 4
-        
-        positions = []
+        # Make the shape movable and selectable
         if isinstance(item, QGraphicsLineItem):
+            item.setFlag(QGraphicsLineItem.ItemIsMovable)
+            item.setFlag(QGraphicsLineItem.ItemIsSelectable)
+            
+            # For lines and arrows, get endpoints in scene coordinates
             line = item.line()
-            positions = [
-                item.mapToScene(line.p1()),
-                item.mapToScene(line.p2())
-            ]
+            p1 = item.mapToScene(line.p1())
+            p2 = item.mapToScene(line.p2())
+            
+            # Create handle at start point
+            start_handle = QGraphicsRectItem()
+            start_handle.setRect(-actual_size/2, -actual_size/2, actual_size, actual_size)
+            start_handle.setPen(QPen(Qt.blue, 2))  # Make border more visible
+            start_handle.setBrush(QBrush(Qt.white))
+            start_handle.setPos(p1)
+            start_handle.setZValue(1000)
+            start_handle.setFlag(QGraphicsRectItem.ItemIsSelectable)
+            self.app.scene.addItem(start_handle)
+            self.resize_handles.append(start_handle)
+            
+            # Create handle at end point
+            end_handle = QGraphicsRectItem()
+            end_handle.setRect(-actual_size/2, -actual_size/2, actual_size, actual_size)
+            end_handle.setPen(QPen(Qt.blue, 2))  # Make border more visible
+            end_handle.setBrush(QBrush(Qt.white))
+            end_handle.setPos(p2)
+            end_handle.setZValue(1000)
+            end_handle.setFlag(QGraphicsRectItem.ItemIsSelectable)
+            self.app.scene.addItem(end_handle)
+            self.resize_handles.append(end_handle)
         else:
+            # For rectangles and other shapes
             rect = item.rect()
             positions = [
                 item.mapToScene(rect.topLeft()),
@@ -218,18 +237,18 @@ class BaseShapeHandler:
                 item.mapToScene(rect.bottomLeft()),
                 item.mapToScene(rect.bottomRight())
             ]
-        
-        for pos in positions:
-            handle = QGraphicsRectItem()
-            half_size = actual_size / 2
-            handle.setRect(-half_size, -half_size, actual_size, actual_size)
-            # Set border width based on whether image is resized
-            handle.setPen(QPen(Qt.black, border_width))
-            handle.setBrush(QBrush(Qt.white))
-            handle.setPos(pos)
-            handle.setZValue(5)
-            self.app.scene.addItem(handle)
-            self.resize_handles.append(handle)
+            
+            # Create handles at all positions
+            for pos in positions:
+                handle = QGraphicsRectItem()
+                handle.setRect(-actual_size/2, -actual_size/2, actual_size, actual_size)
+                handle.setPen(QPen(Qt.blue, 2))  # Make border more visible
+                handle.setBrush(QBrush(Qt.white))
+                handle.setPos(pos)
+                handle.setZValue(1000)
+                handle.setFlag(QGraphicsRectItem.ItemIsSelectable)
+                self.app.scene.addItem(handle)
+                self.resize_handles.append(handle)
 
     def update_resize_handles(self):
         """Update position of resize handles"""

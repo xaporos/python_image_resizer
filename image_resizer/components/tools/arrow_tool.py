@@ -125,10 +125,12 @@ class ArrowTool(BaseTool):
             line = QLineF(self.start_point, pos)
             self.arrow_item.setLine(line)
             
-            self.shape_handler.select_shape(self.arrow_item)
-            
+            # Save state before selecting the shape
             if hasattr(self.app, 'image_handler'):
                 self.app.image_handler.save_state()
+            
+            # Select the shape but stay in arrow tool
+            self.shape_handler.select_shape(self.arrow_item)
             
             self.drawing = False
             self.start_point = None 

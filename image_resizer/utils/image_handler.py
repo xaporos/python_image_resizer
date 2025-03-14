@@ -412,6 +412,12 @@ class ImageHandler:
         # Update the edited_file_sizes if it's not set
         if file_path not in self.edited_file_sizes:
             self.edited_file_sizes[file_path] = self.file_sizes.get(file_path, 0)
+            
+        # Update undo/redo button states based on the selected image's history
+        has_history = file_path in self.image_histories and len(self.image_histories[file_path]) > 0
+        has_redo = file_path in self.image_redo_stacks and len(self.image_redo_stacks[file_path]) > 0
+        self.parent.toolbar.undo_btn.setEnabled(has_history)
+        self.parent.toolbar.redo_btn.setEnabled(has_redo)
 
     def update_preview_and_info(self, file_path):
         """Update the preview area and info labels with current image"""
@@ -472,46 +478,68 @@ class ImageHandler:
             self.aspect_ratio = current_width / current_height
 
     def save_state(self):
-        """Save current state to history"""
+        """Save current state for undo/redo"""
+        # Get current item and file path
         current_item = self.parent.image_list.currentItem()
         if not current_item:
             return
-        
+            
         file_path = self.get_file_path_from_item(current_item)
         if not file_path:
             return
-        
-        # Capture the entire scene including shapes
+            
+        # Clear any active tool or selection before capturing state
+        if hasattr(self.parent, 'tool_manager'):
+            current_tool = self.parent.tool_manager.current_tool
+            if current_tool:
+                # Clear shape selection if exists
+                if hasattr(current_tool, 'shape_handler'):
+                    current_tool.shape_handler.clear_selection()
+                # Deactivate crop tool if active
+                if hasattr(current_tool, 'is_active') and current_tool.is_active:
+                    current_tool.deactivate()
+                    # Force an immediate update of the scene after crop tool deactivation
+                    QApplication.processEvents()
+            
+        # Get scene rect
         scene_rect = self.parent.scene.sceneRect()
+        
+        # Create temporary pixmap of exact scene size
         temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
-        temp_pixmap.fill(Qt.white)
+        temp_pixmap.fill(Qt.white)  # Use white background
+        
+        # Create painter and render scene
         painter = QPainter(temp_pixmap)
-        self.parent.scene.render(painter)
+        painter.setRenderHint(QPainter.Antialiasing)
+        self.parent.scene.render(painter, QRectF(), scene_rect)
         painter.end()
         
-        # Store the state
+        # Store state
         state = {
-            'pixmap': temp_pixmap.copy(),
-            'dimensions': self.current_dimensions[file_path],
-            'file_size': self.file_sizes[file_path],  # Use original file size
-            'is_resized': file_path in self.resized_images,  # Store resize state
-            'view_scale': self.view_scale.get(file_path, 1.0)  # Store view scale
+            'pixmap': temp_pixmap,
+            'dimensions': self.current_dimensions.get(file_path, (0, 0)),
+            'file_size': self.edited_file_sizes.get(file_path, 0),
+            'is_resized': file_path in self.resized_images,
+            'view_scale': self.view_scale.get(file_path, 1.0),
+            'file_path': file_path
         }
         
-        # Save to history
-        self.history.append(state)
-        if len(self.history) > self.max_history:
-            self.history.pop(0)
+        # Initialize history for this image if it doesn't exist
+        if file_path not in self.image_histories:
+            self.image_histories[file_path] = []
+        if file_path not in self.image_redo_stacks:
+            self.image_redo_stacks[file_path] = []
         
-        # Clear redo stack when new action is performed
-        self.redo_stack.clear()
-        
-        # Update button states
-        self.parent.toolbar.undo_btn.setEnabled(True)
-        self.parent.toolbar.redo_btn.setEnabled(False)
+        # Add state to image-specific history
+        self.image_histories[file_path].append(state)
+        self.image_redo_stacks[file_path].clear()
         
         # Store the edited version
         self.edited_images[file_path] = temp_pixmap.copy()
+        
+        # Update button states based on current image's history
+        self.parent.toolbar.undo_btn.setEnabled(len(self.image_histories[file_path]) > 0)
+        self.parent.toolbar.redo_btn.setEnabled(len(self.image_redo_stacks[file_path]) > 0)
         
         # Update info labels
         self.update_info_label()
@@ -529,101 +557,177 @@ class ImageHandler:
                 self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB") 
 
     def undo(self):
-        """Undo the last action"""
-        if len(self.history) > 0:
+        """Undo last action"""
+        # Get current file path
+        current_item = self.parent.image_list.currentItem()
+        if not current_item:
+            return
+            
+        current_file_path = self.get_file_path_from_item(current_item)
+        if not current_file_path:
+            return
+            
+        # Check if there's history for this image
+        if current_file_path not in self.image_histories or not self.image_histories[current_file_path]:
+            return
+            
+        # Clear any active tool or selection before undoing
+        if hasattr(self.parent, 'tool_manager'):
+            current_tool = self.parent.tool_manager.current_tool
+            if current_tool:
+                # Clear shape selection if exists
+                if hasattr(current_tool, 'shape_handler'):
+                    current_tool.shape_handler.clear_selection()
+                # Deactivate crop tool if active
+                if hasattr(current_tool, 'is_active') and current_tool.is_active:
+                    current_tool.deactivate()
+            
+        # Get the current state for redo
+        current_state = self.image_histories[current_file_path].pop()
+        if current_file_path not in self.image_redo_stacks:
+            self.image_redo_stacks[current_file_path] = []
+        self.image_redo_stacks[current_file_path].append(current_state)
+        
+        if self.image_histories[current_file_path]:
             # Get the previous state
-            previous_state = self.history.pop()
+            prev_state = self.image_histories[current_file_path][-1]
             
-            # Add current state to redo stack
-            current_item = self.parent.image_list.currentItem()
-            if current_item:
-                file_path = self.get_file_path_from_item(current_item)
-                if file_path:
-                    current_pixmap = None
-                    for item in self.parent.scene.items():
-                        if isinstance(item, QGraphicsPixmapItem):
-                            current_pixmap = item.pixmap()
-                            break
-                    
-                    if current_pixmap:
-                        current_state = {
-                            'pixmap': current_pixmap.copy(),
-                            'dimensions': self.current_dimensions[file_path],
-                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
-                        }
-                        self.redo_stack.append(current_state)
-            
-            # Clear scene and restore previous state
+            # Clear scene
             self.parent.scene.clear()
-            self.parent.scene.addPixmap(previous_state['pixmap'])
             
-            # Update view to fit the image
-            self.parent.view.setSceneRect(QRectF(previous_state['pixmap'].rect()))
-            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+            # Add previous pixmap with proper transformation
+            pixmap_item = self.parent.scene.addPixmap(prev_state['pixmap'])
+            pixmap_item.setTransformationMode(Qt.SmoothTransformation)
             
-            # Restore dimensions and file size
-            if current_item and file_path:
-                self.current_dimensions[file_path] = previous_state['dimensions']
-                self.edited_file_sizes[file_path] = previous_state['file_size']
-                self.edited_images[file_path] = previous_state['pixmap']
+            # Set scene rect to match the pixmap size
+            width = prev_state['pixmap'].width()
+            height = prev_state['pixmap'].height()
+            self.parent.scene.setSceneRect(0, 0, width, height)
             
-            # Reset line widths based on restored image size
-            width, height = self.current_dimensions[file_path]
-            diagonal = (width**2 + height**2)**0.5
+            # Update dimensions and file size
+            self.current_dimensions[current_file_path] = prev_state['dimensions']
+            self.edited_file_sizes[current_file_path] = prev_state['file_size']
+            
+            # Update resize state
+            if prev_state['is_resized']:
+                self.resized_images.add(current_file_path)
+            else:
+                self.resized_images.discard(current_file_path)
+                
+            # Store edited version
+            self.edited_images[current_file_path] = prev_state['pixmap'].copy()
+            
+            # Reset view transform and fit image
+            self.parent.view.resetTransform()
+            self.fit_image_to_view()
+            
+            # Update line widths based on actual image size
+            actual_width, actual_height = self.current_dimensions[current_file_path]
+            diagonal = (actual_width**2 + actual_height**2)**0.5
             self._update_tool_sizes(diagonal)
             
             # Update info label
             self.update_info_label()
+        else:
+            # If no more history, revert to original image
+            self.parent.scene.clear()
+            if current_file_path in self.images:
+                self.edited_images.pop(current_file_path, None)  # Remove edited version
+                self.resized_images.discard(current_file_path)  # Remove from resized set
+                
+                # Convert original PIL Image to QPixmap
+                original_image = self.images[current_file_path]
+                img_array = np.array(original_image)
+                if len(img_array.shape) == 3:  # Color image
+                    height, width, channels = img_array.shape
+                    bytes_per_line = channels * width
+                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                else:  # Grayscale image
+                    height, width = img_array.shape
+                    bytes_per_line = width
+                    qimage = QImage(img_array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                pixmap = QPixmap.fromImage(qimage)
+                
+                # Add to scene
+                pixmap_item = self.parent.scene.addPixmap(pixmap)
+                pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+                
+                # Set scene rect
+                self.parent.scene.setSceneRect(0, 0, width, height)
+                
+                # Reset view transform and fit
+                self.parent.view.resetTransform()
+                self.fit_image_to_view()
+                
+                # Update dimensions and info
+                self.current_dimensions[current_file_path] = (width, height)
+                self.update_info_label()
             
-            # Update button states
-            self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
-            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0)
+        # Update button states based on current image's history
+        self.parent.toolbar.undo_btn.setEnabled(len(self.image_histories.get(current_file_path, [])) > 0)
+        self.parent.toolbar.redo_btn.setEnabled(len(self.image_redo_stacks.get(current_file_path, [])) > 0)
 
     def redo(self):
-        """Redo the last undone action"""
-        if len(self.redo_stack) > 0:
-            # Get the next state
-            next_state = self.redo_stack.pop()
+        """Redo last undone action"""
+        # Get current file path
+        current_item = self.parent.image_list.currentItem()
+        if not current_item:
+            return
             
-            # Add current state to history before clearing
-            current_item = self.parent.image_list.currentItem()
-            if current_item:
-                file_path = self.get_file_path_from_item(current_item)
-                if file_path:
-                    current_pixmap = None
-                    for item in self.parent.scene.items():
-                        if isinstance(item, QGraphicsPixmapItem):
-                            current_pixmap = item.pixmap()
-                            break
-                    
-                    if current_pixmap:
-                        current_state = {
-                            'pixmap': current_pixmap.copy(),
-                            'dimensions': self.current_dimensions[file_path],
-                            'file_size': self.edited_file_sizes.get(file_path, self.file_sizes[file_path])
-                        }
-                        self.history.append(current_state)
+        current_file_path = self.get_file_path_from_item(current_item)
+        if not current_file_path:
+            return
             
-            # Clear scene and restore next state
-            self.parent.scene.clear()
-            self.parent.scene.addPixmap(next_state['pixmap'])
+        # Check if there's a redo stack for this image
+        if current_file_path not in self.image_redo_stacks or not self.image_redo_stacks[current_file_path]:
+            return
             
-            # Update view to fit the image
-            self.parent.view.setSceneRect(QRectF(next_state['pixmap'].rect()))
-            self.parent.view.fitInView(self.parent.view.sceneRect(), Qt.KeepAspectRatio)
+        # Get the next state
+        next_state = self.image_redo_stacks[current_file_path].pop()
+        if current_file_path not in self.image_histories:
+            self.image_histories[current_file_path] = []
+        self.image_histories[current_file_path].append(next_state)
+        
+        # Clear scene
+        self.parent.scene.clear()
+        
+        # Add next pixmap with proper transformation
+        pixmap_item = self.parent.scene.addPixmap(next_state['pixmap'])
+        pixmap_item.setTransformationMode(Qt.SmoothTransformation)
+        
+        # Set scene rect to match the pixmap size
+        width = next_state['pixmap'].width()
+        height = next_state['pixmap'].height()
+        self.parent.scene.setSceneRect(0, 0, width, height)
+        
+        # Update dimensions and file size
+        self.current_dimensions[current_file_path] = next_state['dimensions']
+        self.edited_file_sizes[current_file_path] = next_state['file_size']
+        
+        # Update resize state
+        if next_state['is_resized']:
+            self.resized_images.add(current_file_path)
+        else:
+            self.resized_images.discard(current_file_path)
             
-            # Restore dimensions and file size
-            if current_item and file_path:
-                self.current_dimensions[file_path] = next_state['dimensions']
-                self.edited_file_sizes[file_path] = next_state['file_size']
-                self.edited_images[file_path] = next_state['pixmap']
-            
-            # Update info label
-            self.update_info_label()
-            
-            # Update button states
-            self.parent.toolbar.undo_btn.setEnabled(len(self.history) > 0)
-            self.parent.toolbar.redo_btn.setEnabled(len(self.redo_stack) > 0)
+        # Store edited version
+        self.edited_images[current_file_path] = next_state['pixmap'].copy()
+        
+        # Reset view transform and fit image
+        self.parent.view.resetTransform()
+        self.fit_image_to_view()
+        
+        # Update line widths based on actual image size
+        actual_width, actual_height = self.current_dimensions[current_file_path]
+        diagonal = (actual_width**2 + actual_height**2)**0.5
+        self._update_tool_sizes(diagonal)
+        
+        # Update info label
+        self.update_info_label()
+        
+        # Update button states based on current image's history
+        self.parent.toolbar.undo_btn.setEnabled(len(self.image_histories.get(current_file_path, [])) > 0)
+        self.parent.toolbar.redo_btn.setEnabled(len(self.image_redo_stacks.get(current_file_path, [])) > 0)
 
     def get_file_path_from_item(self, item):
         """Get the full file path from a list item"""
