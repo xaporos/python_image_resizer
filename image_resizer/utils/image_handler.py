@@ -213,54 +213,50 @@ class ImageHandler:
                 )
                 return
             
-            # For images with shapes but not resized, we need to preserve original dimensions
-            if has_shapes and not is_resized:
-                # Get the original image
-                original_image = self.images.get(file_path)
-                if original_image:
-                    # Get the original dimensions
-                    original_width, original_height = original_image.size
-                    
-                    # Create a new pixmap with the exact original dimensions
-                    temp_pixmap = QPixmap(original_width, original_height)
-                    temp_pixmap.fill(Qt.transparent)
-                    
-                    # Create a painter to draw on the pixmap
-                    painter = QPainter(temp_pixmap)
-                    painter.setRenderHint(QPainter.Antialiasing, True)
-                    painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-                    painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
-                    
-                    # Get the current scene
-                    scene_rect = self.parent.scene.sceneRect()
-                    
-                    # Calculate the scale factors to maintain aspect ratio
-                    scale_x = original_width / scene_rect.width()
-                    scale_y = original_height / scene_rect.height()
-                    
-                    # Apply the transformation to maintain original dimensions
-                    painter.scale(scale_x, scale_y)
-                    
-                    # Render the scene to the pixmap
-                    self.parent.scene.render(painter, QRectF(), scene_rect)
-                    painter.end()
-                    
-                    # Use this pixmap for saving
-                    pixmap = temp_pixmap
-                else:
-                    # Fallback to getting pixmap from scene
-                    pixmap = None
-                    for item in self.parent.scene.items():
-                        if isinstance(item, QGraphicsPixmapItem):
-                            pixmap = item.pixmap()
-                            break
+            # For cropped images, use the edited image directly
+            if file_path in self.edited_images:
+                pixmap = self.edited_images[file_path]
             else:
-                # For resized images or if we couldn't get original dimensions
-                pixmap = None
-                for item in self.parent.scene.items():
-                    if isinstance(item, QGraphicsPixmapItem):
-                        pixmap = item.pixmap()
-                        break
+                # For images with shapes but not resized, we need to preserve original dimensions
+                if has_shapes and not is_resized:
+                    # Get the original image
+                    original_image = self.images.get(file_path)
+                    if original_image:
+                        # Get the original dimensions
+                        original_width, original_height = original_image.size
+                        
+                        # Create a new pixmap with the exact original dimensions
+                        temp_pixmap = QPixmap(original_width, original_height)
+                        temp_pixmap.fill(Qt.transparent)
+                        
+                        # Create a painter to draw on the pixmap
+                        painter = QPainter(temp_pixmap)
+                        painter.setRenderHint(QPainter.Antialiasing, True)
+                        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+                        painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
+                        
+                        # Get the current scene
+                        scene_rect = self.parent.scene.sceneRect()
+                        
+                        # Calculate the scale factors to maintain aspect ratio
+                        scale_x = original_width / scene_rect.width()
+                        scale_y = original_height / scene_rect.height()
+                        
+                        # Apply the transformation to maintain original dimensions
+                        painter.scale(scale_x, scale_y)
+                        
+                        # Render the scene to the pixmap
+                        self.parent.scene.render(painter, QRectF(), scene_rect)
+                        painter.end()
+                        
+                        # Use this pixmap for saving
+                        pixmap = temp_pixmap
+                    else:
+                        # Fallback to getting pixmap from edited_images
+                        pixmap = self.edited_images.get(file_path)
+                else:
+                    # For resized images or if we couldn't get original dimensions
+                    pixmap = self.edited_images.get(file_path)
             
             if not pixmap:
                 # If no pixmap in scene, try to get it from edited_images
@@ -966,50 +962,54 @@ class ImageHandler:
                         print(f"Successfully saved original: {os.path.basename(save_path)}")
                         continue
                     
-                    # For images with shapes but not resized, we need to preserve original dimensions
-                    if has_shapes and not is_resized:
-                        # First, select the item to make it the current item
-                        self.parent.image_list.setCurrentItem(item)
-                        QApplication.processEvents()  # Process events to ensure the scene is updated
-                        
-                        # Get the original image
-                        original_image = self.images.get(file_path)
-                        if original_image:
-                            # Get the original dimensions
-                            original_width, original_height = original_image.size
-                            
-                            # Create a new pixmap with the exact original dimensions
-                            temp_pixmap = QPixmap(original_width, original_height)
-                            temp_pixmap.fill(Qt.transparent)
-                            
-                            # Create a painter to draw on the pixmap
-                            painter = QPainter(temp_pixmap)
-                            painter.setRenderHint(QPainter.Antialiasing, True)
-                            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-                            painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
-                            
-                            # Get the current scene
-                            scene_rect = self.parent.scene.sceneRect()
-                            
-                            # Calculate the scale factors to maintain aspect ratio
-                            scale_x = original_width / scene_rect.width()
-                            scale_y = original_height / scene_rect.height()
-                            
-                            # Apply the transformation to maintain original dimensions
-                            painter.scale(scale_x, scale_y)
-                            
-                            # Render the scene to the pixmap
-                            self.parent.scene.render(painter, QRectF(), scene_rect)
-                            painter.end()
-                            
-                            # Use this pixmap for saving
-                            pixmap = temp_pixmap
-                        else:
-                            # Fallback to getting pixmap from edited_images
-                            pixmap = self.edited_images.get(file_path)
+                    # For cropped images, use the edited image directly
+                    if file_path in self.edited_images:
+                        pixmap = self.edited_images[file_path]
                     else:
-                        # For resized images or if we couldn't get original dimensions
-                        pixmap = self.edited_images.get(file_path)
+                        # For images with shapes but not resized, we need to preserve original dimensions
+                        if has_shapes and not is_resized:
+                            # First, select the item to make it the current item
+                            self.parent.image_list.setCurrentItem(item)
+                            QApplication.processEvents()  # Process events to ensure the scene is updated
+                            
+                            # Get the original image
+                            original_image = self.images.get(file_path)
+                            if original_image:
+                                # Get the original dimensions
+                                original_width, original_height = original_image.size
+                                
+                                # Create a new pixmap with the exact original dimensions
+                                temp_pixmap = QPixmap(original_width, original_height)
+                                temp_pixmap.fill(Qt.transparent)
+                                
+                                # Create a painter to draw on the pixmap
+                                painter = QPainter(temp_pixmap)
+                                painter.setRenderHint(QPainter.Antialiasing, True)
+                                painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+                                painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
+                                
+                                # Get the current scene
+                                scene_rect = self.parent.scene.sceneRect()
+                                
+                                # Calculate the scale factors to maintain aspect ratio
+                                scale_x = original_width / scene_rect.width()
+                                scale_y = original_height / scene_rect.height()
+                                
+                                # Apply the transformation to maintain original dimensions
+                                painter.scale(scale_x, scale_y)
+                                
+                                # Render the scene to the pixmap
+                                self.parent.scene.render(painter, QRectF(), scene_rect)
+                                painter.end()
+                                
+                                # Use this pixmap for saving
+                                pixmap = temp_pixmap
+                            else:
+                                # Fallback to getting pixmap from edited_images
+                                pixmap = self.edited_images.get(file_path)
+                        else:
+                            # For resized images or if we couldn't get original dimensions
+                            pixmap = self.edited_images.get(file_path)
                     
                     # If still no pixmap and original exists, try to load from original
                     if not pixmap and original_file_exists:
