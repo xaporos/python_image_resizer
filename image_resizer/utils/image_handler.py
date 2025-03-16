@@ -817,41 +817,12 @@ class ImageHandler:
                     
                 print(f"Processing image {i + 1}/{total_images}: {os.path.basename(file_path)}")
                 
-                # Get the pixmap to save - either edited or original
-                pixmap = None
-                if file_path in self.edited_images:
-                    print(f"Using edited version for: {os.path.basename(file_path)}")
-                    pixmap = self.edited_images[file_path]
-                else:
-                    print(f"Using original version for: {os.path.basename(file_path)}")
-                    # Use original PIL Image directly
-                    original_image = self.images.get(file_path)
-                    if original_image:
-                        # Save original image with original size
-                        base_name = os.path.basename(file_path)
-                        original_ext = os.path.splitext(file_path)[1].lower()
-                        save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
-                        
-                        try:
-                            if original_ext.lower() in ('.jpg', '.jpeg'):
-                                original_image.save(save_path, 'JPEG', quality=quality)
-                            else:
-                                original_image.save(save_path, original_image.format)
-                            success_count += 1
-                            print(f"Successfully saved original: {os.path.basename(save_path)}")
-                        except Exception as e:
-                            print(f"Failed to save {os.path.basename(save_path)}: {str(e)}")
-                            failed_count += 1
-                        continue
+                # Check if the image has been modified
+                has_shapes = file_path in self.edited_images  # Has shapes or other edits
+                is_resized = file_path in self.resized_images  # Has been explicitly resized
                 
-                if not pixmap:
-                    print(f"No pixmap found for: {os.path.basename(file_path)}")
-                    failed_count += 1
-                    continue
-                    
+                # Create save path with proper extension
                 base_name = os.path.basename(file_path)
-                
-                # Ensure proper file extension is preserved
                 original_ext = os.path.splitext(file_path)[1].lower()
                 if not original_ext:
                     print(f"No extension found, using .jpg for: {base_name}")
@@ -860,19 +831,39 @@ class ImageHandler:
                     print(f"Unsupported extension {original_ext}, converting to .jpg for: {base_name}")
                     original_ext = '.jpg'
                 
-                # Create save path with proper extension
                 save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
                 print(f"Saving to: {save_path}")
                 
                 try:
-                    # Save with quality setting
-                    if original_ext.lower() in ('.jpg', '.jpeg'):
-                        pixmap.save(save_path, 'JPEG', quality)
+                    if not has_shapes and not is_resized:
+                        # If not modified at all, just copy the original file
+                        import shutil
+                        shutil.copy2(file_path, save_path)
+                        success_count += 1
+                        print(f"Successfully saved original: {os.path.basename(save_path)}")
+                        continue
+                    
+                    # Get the pixmap for modified images
+                    pixmap = None
+                    if has_shapes or is_resized:
+                        pixmap = self.edited_images[file_path]
+                    
+                    if not pixmap:
+                        print(f"No pixmap found for: {os.path.basename(file_path)}")
+                        failed_count += 1
+                        continue
+                    
+                    # Save with quality setting only if the image was resized
+                    save_quality = quality if is_resized else 100
+                    
+                    if save_path.lower().endswith(('.jpg', '.jpeg')):
+                        pixmap.save(save_path, 'JPEG', save_quality)
                     else:
                         pixmap.save(save_path, 'PNG')  # PNG doesn't use quality
                         
                     success_count += 1
                     print(f"Successfully saved: {os.path.basename(save_path)}")
+                    
                 except Exception as e:
                     print(f"Failed to save {os.path.basename(save_path)}: {str(e)}")
                     failed_count += 1
