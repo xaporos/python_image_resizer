@@ -19,7 +19,7 @@ class ImageHandler:
         self.file_sizes = {}
         self.aspect_ratio = 1.0
         self.history = []
-        self.redo_stack = []
+        self.redo_stack = {}
         self.image_histories = {}
         self.image_redo_stacks = {}
         self.max_history = 10
@@ -180,9 +180,24 @@ class ImageHandler:
             # Check if the image has been modified
             has_shapes = file_path in self.edited_images  # Has shapes or other edits
             is_resized = file_path in self.resized_images  # Has been explicitly resized
+            is_modified = has_shapes or is_resized
             
-            if not has_shapes and not is_resized:
-                # If not modified at all, just copy the original file
+            # Check if the original file exists (it might not if the image was renamed)
+            original_file_exists = os.path.exists(file_path)
+            
+            # Ensure save_path has a valid image extension
+            save_ext = os.path.splitext(save_path)[1].lower()
+            if not save_ext or save_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+                # Use the extension from the original file
+                orig_ext = os.path.splitext(file_path)[1].lower()
+                if not orig_ext or orig_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+                    # Default to .jpg if no valid extension
+                    save_path = save_path + '.jpg'
+                else:
+                    save_path = save_path + orig_ext
+            
+            if not is_modified and original_file_exists:
+                # If not modified at all and original file exists, just copy the original file
                 import shutil
                 shutil.copy2(file_path, save_path)
                 
@@ -198,36 +213,115 @@ class ImageHandler:
                 )
                 return
             
-            # Get current pixmap for modified images
-            pixmap = None
-            for item in self.parent.scene.items():
-                if isinstance(item, QGraphicsPixmapItem):
-                    pixmap = item.pixmap()
-                    break
+            # For images with shapes but not resized, we need to preserve original dimensions
+            if has_shapes and not is_resized:
+                # Get the original image
+                original_image = self.images.get(file_path)
+                if original_image:
+                    # Get the original dimensions
+                    original_width, original_height = original_image.size
+                    
+                    # Create a new pixmap with the exact original dimensions
+                    temp_pixmap = QPixmap(original_width, original_height)
+                    temp_pixmap.fill(Qt.transparent)
+                    
+                    # Create a painter to draw on the pixmap
+                    painter = QPainter(temp_pixmap)
+                    painter.setRenderHint(QPainter.Antialiasing, True)
+                    painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+                    painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
+                    
+                    # Get the current scene
+                    scene_rect = self.parent.scene.sceneRect()
+                    
+                    # Calculate the scale factors to maintain aspect ratio
+                    scale_x = original_width / scene_rect.width()
+                    scale_y = original_height / scene_rect.height()
+                    
+                    # Apply the transformation to maintain original dimensions
+                    painter.scale(scale_x, scale_y)
+                    
+                    # Render the scene to the pixmap
+                    self.parent.scene.render(painter, QRectF(), scene_rect)
+                    painter.end()
+                    
+                    # Use this pixmap for saving
+                    pixmap = temp_pixmap
+                else:
+                    # Fallback to getting pixmap from scene
+                    pixmap = None
+                    for item in self.parent.scene.items():
+                        if isinstance(item, QGraphicsPixmapItem):
+                            pixmap = item.pixmap()
+                            break
+            else:
+                # For resized images or if we couldn't get original dimensions
+                pixmap = None
+                for item in self.parent.scene.items():
+                    if isinstance(item, QGraphicsPixmapItem):
+                        pixmap = item.pixmap()
+                        break
             
             if not pixmap:
-                return
+                # If no pixmap in scene, try to get it from edited_images
+                if file_path in self.edited_images:
+                    pixmap = self.edited_images[file_path]
+                # If still no pixmap and original exists, try to load from original
+                elif original_file_exists:
+                    original_image = self.images.get(file_path)
+                    if original_image:
+                        img_array = np.array(original_image)
+                        if len(img_array.shape) == 3:  # Color image
+                            array_height, array_width, channels = img_array.shape
+                            bytes_per_line = channels * array_width
+                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
+                        else:  # Grayscale image
+                            array_height, array_width = img_array.shape
+                            bytes_per_line = array_width
+                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
+                        pixmap = QPixmap.fromImage(qimage)
+                
+                if not pixmap:
+                    QMessageBox.critical(self.parent, "Error", "Could not get image data to save.")
+                    return
             
-            # Save with quality setting only if the image was resized
-            quality = self.parent.toolbar.quality_slider.value() if is_resized else 100
-            
+            # Save with maximum quality to preserve exact appearance
             if save_path.lower().endswith(('.jpg', '.jpeg')):
-                pixmap.save(save_path, 'JPEG', quality)
+                pixmap.save(save_path, 'JPEG', 100)  # Always use 100 quality to preserve exact appearance
             else:
-                pixmap.save(save_path, 'PNG')  # PNG doesn't use quality
+                pixmap.save(save_path, 'PNG')  # PNG is lossless
             
             # Show appropriate success message
-            original_size = os.path.getsize(file_path)
-            new_size = os.path.getsize(save_path)
-            orig_mb, new_mb, reduction = self.resizer.calculate_statistics(original_size, new_size)
-            
-            if is_resized:
-                message = (f"Resized image saved successfully!\n\n"
-                          f"Original size: {orig_mb:.2f} MB\n"
-                          f"New size: {new_mb:.2f} MB\n"
-                          f"Reduction: {reduction:.1f}%")
+            if original_file_exists:
+                original_size = os.path.getsize(file_path)
+                new_size = os.path.getsize(save_path)
+                orig_mb, new_mb, reduction = self.resizer.calculate_statistics(original_size, new_size)
+                
+                # Check if the file got larger (negative reduction)
+                if reduction < 0:
+                    # Simplified message for negative reduction (file got larger)
+                    message = (f"Image saved successfully!\n\n"
+                              f"Size: {new_mb:.2f} MB")
+                else:
+                    # Regular message with reduction percentage
+                    if is_resized:
+                        message = (f"Resized image saved successfully!\n\n"
+                                  f"Original size: {orig_mb:.2f} MB\n"
+                                  f"New size: {new_mb:.2f} MB\n"
+                                  f"Reduction: {reduction:.1f}%")
+                    elif has_shapes:
+                        message = (f"Modified image saved successfully!\n\n"
+                                  f"Original size: {orig_mb:.2f} MB\n"
+                                  f"New size: {new_mb:.2f} MB\n"
+                                  f"Reduction: {reduction:.1f}%")
+                    else:
+                        message = (f"Image saved successfully!\n\n"
+                                  f"Size: {new_mb:.2f} MB")
             else:
-                message = (f"Image with shapes saved successfully!\n\n"
+                # For renamed images where original file doesn't exist
+                new_size = os.path.getsize(save_path)
+                new_mb = new_size / (1024 * 1024)
+                message = (f"Image saved successfully!\n\n"
                           f"Size: {new_mb:.2f} MB")
             
             QMessageBox.information(self.parent, "Success", message)
@@ -778,15 +872,36 @@ class ImageHandler:
         return None
 
     def calculate_file_size(self, pixmap, quality=80):
-        """Calculate file size based on pixmap data"""
+        """Calculate file size based on pixmap data using the same format that will be used for saving"""
         from PyQt5.QtCore import QByteArray, QBuffer
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.WriteOnly)
-        pixmap.save(buffer, "PNG")
+        
+        # Get current file path to determine format
+        current_item = self.parent.image_list.currentItem()
+        if current_item:
+            file_path = self.get_file_path_from_item(current_item)
+            if file_path:
+                # Get file extension
+                file_ext = os.path.splitext(file_path)[1].lower()
+                
+                # Use JPEG for jpg/jpeg files with quality setting
+                if file_ext in ['.jpg', '.jpeg']:
+                    pixmap.save(buffer, "JPEG", quality)
+                else:
+                    # For PNG and other formats, use PNG format with maximum compression
+                    pixmap.save(buffer, "PNG", -1)  # -1 means maximum compression
+                
+                size_in_mb = byte_array.size() / (1024 * 1024)
+                buffer.close()
+                return size_in_mb
+        
+        # Default to PNG if no file path available
+        pixmap.save(buffer, "PNG", -1)
         size_in_mb = byte_array.size() / (1024 * 1024)
         buffer.close()
-        return size_in_mb 
+        return size_in_mb
 
     def save_all(self):
         """Save all modified images"""
@@ -801,7 +916,6 @@ class ImageHandler:
         
         success_count = 0
         failed_count = 0
-        quality = self.parent.toolbar.quality_slider.value()
         
         # Store current selection to restore later
         current_item = self.parent.image_list.currentItem()
@@ -811,59 +925,132 @@ class ImageHandler:
             total_images = self.parent.image_list.count()
             print(f"Total images to process: {total_images}")
             
+            # First, collect all items to process to avoid issues with renamed images
+            items_to_process = []
             for i in range(total_images):
                 item = self.parent.image_list.item(i)
                 file_path = self.get_file_path_from_item(item)
-                
-                if not file_path:
-                    print(f"Could not get file path for item {i}")
-                    continue
-                    
-                print(f"Processing image {i + 1}/{total_images}: {os.path.basename(file_path)}")
+                if file_path:
+                    items_to_process.append((item, file_path))
+            
+            # Now process each item
+            for i, (item, file_path) in enumerate(items_to_process):
+                print(f"Processing image {i + 1}/{len(items_to_process)}: {os.path.basename(file_path)}")
                 
                 # Check if the image has been modified
                 has_shapes = file_path in self.edited_images  # Has shapes or other edits
                 is_resized = file_path in self.resized_images  # Has been explicitly resized
+                is_modified = has_shapes or is_resized
+                
+                # Check if the original file exists (it might not if the image was renamed)
+                original_file_exists = os.path.exists(file_path)
                 
                 # Create save path with proper extension
                 base_name = os.path.basename(file_path)
                 original_ext = os.path.splitext(file_path)[1].lower()
-                if not original_ext:
-                    print(f"No extension found, using .jpg for: {base_name}")
-                    original_ext = '.jpg'
-                elif original_ext not in ['.jpg', '.jpeg', '.png']:
-                    print(f"Unsupported extension {original_ext}, converting to .jpg for: {base_name}")
+                
+                # Ensure we have a valid extension
+                if not original_ext or original_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+                    print(f"No valid extension found, using .jpg for: {base_name}")
                     original_ext = '.jpg'
                 
                 save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
                 print(f"Saving to: {save_path}")
                 
                 try:
-                    if not has_shapes and not is_resized:
-                        # If not modified at all, just copy the original file
+                    if not is_modified and original_file_exists:
+                        # If not modified at all and original file exists, just copy the original file
                         import shutil
                         shutil.copy2(file_path, save_path)
                         success_count += 1
                         print(f"Successfully saved original: {os.path.basename(save_path)}")
                         continue
                     
-                    # Get the pixmap for modified images
-                    pixmap = None
-                    if has_shapes or is_resized:
-                        pixmap = self.edited_images[file_path]
+                    # For images with shapes but not resized, we need to preserve original dimensions
+                    if has_shapes and not is_resized:
+                        # First, select the item to make it the current item
+                        self.parent.image_list.setCurrentItem(item)
+                        QApplication.processEvents()  # Process events to ensure the scene is updated
+                        
+                        # Get the original image
+                        original_image = self.images.get(file_path)
+                        if original_image:
+                            # Get the original dimensions
+                            original_width, original_height = original_image.size
+                            
+                            # Create a new pixmap with the exact original dimensions
+                            temp_pixmap = QPixmap(original_width, original_height)
+                            temp_pixmap.fill(Qt.transparent)
+                            
+                            # Create a painter to draw on the pixmap
+                            painter = QPainter(temp_pixmap)
+                            painter.setRenderHint(QPainter.Antialiasing, True)
+                            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+                            painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
+                            
+                            # Get the current scene
+                            scene_rect = self.parent.scene.sceneRect()
+                            
+                            # Calculate the scale factors to maintain aspect ratio
+                            scale_x = original_width / scene_rect.width()
+                            scale_y = original_height / scene_rect.height()
+                            
+                            # Apply the transformation to maintain original dimensions
+                            painter.scale(scale_x, scale_y)
+                            
+                            # Render the scene to the pixmap
+                            self.parent.scene.render(painter, QRectF(), scene_rect)
+                            painter.end()
+                            
+                            # Use this pixmap for saving
+                            pixmap = temp_pixmap
+                        else:
+                            # Fallback to getting pixmap from edited_images
+                            pixmap = self.edited_images.get(file_path)
+                    else:
+                        # For resized images or if we couldn't get original dimensions
+                        pixmap = self.edited_images.get(file_path)
+                    
+                    # If still no pixmap and original exists, try to load from original
+                    if not pixmap and original_file_exists:
+                        original_image = self.images.get(file_path)
+                        if original_image:
+                            img_array = np.array(original_image)
+                            if len(img_array.shape) == 3:  # Color image
+                                array_height, array_width, channels = img_array.shape
+                                bytes_per_line = channels * array_width
+                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
+                            else:  # Grayscale image
+                                array_height, array_width = img_array.shape
+                                bytes_per_line = array_width
+                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
+                            pixmap = QPixmap.fromImage(qimage)
+                    
+                    # If still no pixmap, try to get it from the images dictionary directly
+                    if not pixmap and file_path in self.images:
+                        original_image = self.images.get(file_path)
+                        if original_image:
+                            img_array = np.array(original_image)
+                            if len(img_array.shape) == 3:  # Color image
+                                array_height, array_width, channels = img_array.shape
+                                bytes_per_line = channels * array_width
+                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
+                            else:  # Grayscale image
+                                array_height, array_width = img_array.shape
+                                bytes_per_line = array_width
+                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
+                            pixmap = QPixmap.fromImage(qimage)
                     
                     if not pixmap:
                         print(f"No pixmap found for: {os.path.basename(file_path)}")
                         failed_count += 1
                         continue
                     
-                    # Save with quality setting only if the image was resized
-                    save_quality = quality if is_resized else 100
-                    
+                    # Save with maximum quality to preserve exact appearance
                     if save_path.lower().endswith(('.jpg', '.jpeg')):
-                        pixmap.save(save_path, 'JPEG', save_quality)
+                        pixmap.save(save_path, 'JPEG', 100)  # Always use 100 quality to preserve exact appearance
                     else:
-                        pixmap.save(save_path, 'PNG')  # PNG doesn't use quality
+                        pixmap.save(save_path, 'PNG')  # PNG is lossless
                         
                     success_count += 1
                     print(f"Successfully saved: {os.path.basename(save_path)}")
@@ -903,12 +1090,23 @@ class ImageHandler:
 
     def rename_image(self, old_name, new_name):
         """Rename image file in the list"""
+        # Ensure the new name has a valid image extension
+        old_ext = os.path.splitext(old_name)[1].lower()
+        new_ext = os.path.splitext(new_name)[1].lower()
+        
+        # If new name doesn't have an extension or has a different extension, add the original extension
+        if not new_ext or new_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+            new_name = os.path.splitext(new_name)[0] + old_ext
+        
         # Store current states
         temp_images = self.images.copy()
         temp_edited_images = self.edited_images.copy()
         temp_current_dimensions = self.current_dimensions.copy()
         temp_file_sizes = self.file_sizes.copy()
         temp_edited_file_sizes = self.edited_file_sizes.copy()
+        temp_image_histories = self.image_histories.copy()
+        temp_redo_stack = self.redo_stack.copy() if hasattr(self, 'redo_stack') else {}
+        temp_image_redo_stacks = self.image_redo_stacks.copy() if hasattr(self, 'image_redo_stacks') else {}
         
         # Find the file path
         old_path = None
@@ -927,6 +1125,11 @@ class ImageHandler:
             self.current_dimensions.clear()
             self.file_sizes.clear()
             self.edited_file_sizes.clear()
+            self.image_histories.clear()
+            if hasattr(self, 'redo_stack'):
+                self.redo_stack.clear()
+            if hasattr(self, 'image_redo_stacks'):
+                self.image_redo_stacks.clear()
             
             # Clear the list widget
             self.parent.image_list.clear()
@@ -943,6 +1146,13 @@ class ImageHandler:
                         self.file_sizes[new_path] = temp_file_sizes[old_path]
                     if old_path in temp_edited_file_sizes:
                         self.edited_file_sizes[new_path] = temp_edited_file_sizes[old_path]
+                    if old_path in temp_image_histories:
+                        self.image_histories[new_path] = temp_image_histories[old_path]
+                    if hasattr(self, 'redo_stack') and old_path in temp_redo_stack:
+                        self.redo_stack[new_path] = temp_redo_stack[old_path]
+                    if hasattr(self, 'image_redo_stacks') and old_path in temp_image_redo_stacks:
+                        self.image_redo_stacks[new_path] = temp_image_redo_stacks[old_path]
+                    
                     # Add to list with new name
                     self.parent.add_image_to_list(new_name)
                 else:
@@ -955,6 +1165,13 @@ class ImageHandler:
                         self.file_sizes[path] = temp_file_sizes[path]
                     if path in temp_edited_file_sizes:
                         self.edited_file_sizes[path] = temp_edited_file_sizes[path]
+                    if path in temp_image_histories:
+                        self.image_histories[path] = temp_image_histories[path]
+                    if hasattr(self, 'redo_stack') and path in temp_redo_stack:
+                        self.redo_stack[path] = temp_redo_stack[path]
+                    if hasattr(self, 'image_redo_stacks') and path in temp_image_redo_stacks:
+                        self.image_redo_stacks[path] = temp_image_redo_stacks[path]
+                    
                     # Add to list with original name
                     self.parent.add_image_to_list(os.path.basename(path))
             

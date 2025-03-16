@@ -67,12 +67,12 @@ class ImageResizer:
             print(f"Error saving image: {str(e)}")
             return False
 
-    def get_save_path(self, parent, original_path, prefix="resized"):
+    def get_save_path(self, parent, original_path, prefix="edited"):
         """Get save path from user"""
         original_ext = original_path.lower().split('.')[-1]
         save_path, _ = QFileDialog.getSaveFileName(
             parent,
-            "Save Resized Image",
+            "Save Image",
             f"{prefix}_{original_path.split('/')[-1]}",
             f"Image Files (*.{original_ext})"
         )
