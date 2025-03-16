@@ -133,7 +133,7 @@ class ImageHandler:
             # Store edited version and update dimensions
             self.edited_images[file_path] = pixmap
             self.current_dimensions[file_path] = (actual_width, actual_height)
-            self.resized_images.add(file_path)  # Mark as resized
+            self.resized_images.add(file_path)  # Mark as resized ONLY when explicitly using resize
             
             # Calculate and store file size
             img_byte_arr = BytesIO()
@@ -177,35 +177,60 @@ class ImageHandler:
             return
         
         try:
-            # Get current pixmap
+            # Check if the image has been modified
+            has_shapes = file_path in self.edited_images  # Has shapes or other edits
+            is_resized = file_path in self.resized_images  # Has been explicitly resized
+            
+            if not has_shapes and not is_resized:
+                # If not modified at all, just copy the original file
+                import shutil
+                shutil.copy2(file_path, save_path)
+                
+                # Show success message with statistics
+                original_size = os.path.getsize(file_path)
+                new_size = os.path.getsize(save_path)
+                orig_mb = original_size / (1024 * 1024)
+                
+                QMessageBox.information(
+                    self.parent, "Success",
+                    f"Original image saved successfully!\n\n"
+                    f"Size: {orig_mb:.2f} MB"
+                )
+                return
+            
+            # Get current pixmap for modified images
             pixmap = None
             for item in self.parent.scene.items():
                 if isinstance(item, QGraphicsPixmapItem):
                     pixmap = item.pixmap()
                     break
-                
+            
             if not pixmap:
                 return
             
-            # Save with quality setting
-            quality = self.parent.toolbar.quality_slider.value()
+            # Save with quality setting only if the image was resized
+            quality = self.parent.toolbar.quality_slider.value() if is_resized else 100
+            
             if save_path.lower().endswith(('.jpg', '.jpeg')):
                 pixmap.save(save_path, 'JPEG', quality)
             else:
                 pixmap.save(save_path, 'PNG')  # PNG doesn't use quality
             
-            # Show success message with statistics
+            # Show appropriate success message
             original_size = os.path.getsize(file_path)
             new_size = os.path.getsize(save_path)
             orig_mb, new_mb, reduction = self.resizer.calculate_statistics(original_size, new_size)
             
-            QMessageBox.information(
-                self.parent, "Success",
-                f"Image saved successfully!\n\n"
-                f"Original size: {orig_mb:.2f} MB\n"
-                f"New size: {new_mb:.2f} MB\n"
-                f"Reduction: {reduction:.1f}%"
-            )
+            if is_resized:
+                message = (f"Resized image saved successfully!\n\n"
+                          f"Original size: {orig_mb:.2f} MB\n"
+                          f"New size: {new_mb:.2f} MB\n"
+                          f"Reduction: {reduction:.1f}%")
+            else:
+                message = (f"Image with shapes saved successfully!\n\n"
+                          f"Size: {new_mb:.2f} MB")
+            
+            QMessageBox.information(self.parent, "Success", message)
             
             self.modified = False
             
