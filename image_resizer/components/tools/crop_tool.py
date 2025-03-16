@@ -99,9 +99,6 @@ class CropTool(BaseTool):
             # Get crop rectangle
             rect = self.crop_rect.rect().normalized()
             
-            # Save state before cropping
-            self.app.image_handler.save_state()
-            
             # Get the original pixmap
             original_pixmap = None
             
@@ -128,6 +125,9 @@ class CropTool(BaseTool):
             
             # Set scene rect to match the cropped image size
             self.app.scene.setSceneRect(0, 0, cropped.width(), cropped.height())
+            
+            # Save state AFTER applying the crop
+            self.app.image_handler.save_state()
             
             # Use the helper method to properly fit the image
             self.app.image_handler.fit_image_to_view()
