@@ -401,35 +401,31 @@ class ImageHandler:
             self.parent.view.horizontalScrollBar().setValue(0)
             self.parent.view.verticalScrollBar().setValue(0)
             
-            # Get the pixmap item
-            pixmap_item = None
-            for item in self.parent.scene.items():
-                if isinstance(item, QGraphicsPixmapItem):
-                    pixmap_item = item
-                    break
+            # Get the scene rect
+            scene_rect = self.parent.scene.sceneRect()
             
-            if pixmap_item:
-                # Set scene rect to exactly match the pixmap bounds
-                pixmap_rect = pixmap_item.boundingRect()
-                self.parent.scene.setSceneRect(pixmap_rect)
-                
-                # Fit in view while maintaining aspect ratio
-                self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
-                
-                # Process events to ensure view is updated
-                QApplication.processEvents()
-                
-                # Store the view scale for the current image
-                current_item = self.parent.image_list.currentItem()
-                if current_item:
-                    file_path = self.get_file_path_from_item(current_item)
-                    if file_path:
-                        self.view_scale[file_path] = self.parent.view.transform().m11()
-                
-                # Reset scrollbars again and fit view again
-                self.parent.view.horizontalScrollBar().setValue(0)
-                self.parent.view.verticalScrollBar().setValue(0)
-                self.parent.view.fitInView(self.parent.scene.sceneRect(), Qt.KeepAspectRatio)
+            # First fit attempt
+            self.parent.view.fitInView(scene_rect, Qt.KeepAspectRatio)
+            QApplication.processEvents()
+            
+            # Force scene update
+            self.parent.scene.update()
+            QApplication.processEvents()
+            
+            # Final fit attempt
+            self.parent.view.fitInView(scene_rect, Qt.KeepAspectRatio)
+            QApplication.processEvents()
+            
+            # Store the view scale for the current image
+            current_item = self.parent.image_list.currentItem()
+            if current_item:
+                file_path = self.get_file_path_from_item(current_item)
+                if file_path:
+                    self.view_scale[file_path] = self.parent.view.transform().m11()
+            
+            # Reset scrollbars one final time
+            self.parent.view.horizontalScrollBar().setValue(0)
+            self.parent.view.verticalScrollBar().setValue(0)
 
     def image_selected(self, current, previous):
         """Handle image selection change"""
@@ -608,14 +604,14 @@ class ImageHandler:
                     current_tool.deactivate()
                     QApplication.processEvents()
         
-        # Get original dimensions
-        width, height = self.original_dimensions.get(file_path, (0, 0))
-        if file_path in self.resized_images:
-            width, height = self.current_dimensions.get(file_path, (0, 0))
+        # Get scene rect and dimensions
+        scene_rect = self.parent.scene.sceneRect()
+        width = int(scene_rect.width())
+        height = int(scene_rect.height())
         
-        # Create pixmap with correct dimensions
+        # Create pixmap with white background
         temp_pixmap = QPixmap(width, height)
-        temp_pixmap.fill(Qt.transparent)
+        temp_pixmap.fill(Qt.white)
         
         # Create painter with high quality settings
         painter = QPainter(temp_pixmap)
@@ -623,11 +619,8 @@ class ImageHandler:
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
         
-        # Get the scene rect
-        scene_rect = self.parent.scene.sceneRect()
-        
         # Render the scene at the correct dimensions
-        self.parent.scene.render(painter, QRectF(0, 0, width, height), scene_rect)
+        self.parent.scene.render(painter, QRectF(temp_pixmap.rect()), scene_rect)
         painter.end()
         
         # Initialize history if needed
@@ -638,12 +631,12 @@ class ImageHandler:
         state = {
             'pixmap': temp_pixmap,
             'dimensions': (width, height),
+            'scene_rect': scene_rect,
             'file_size': self.calculate_file_size(temp_pixmap),
             'is_resized': file_path in self.resized_images,
             'view_scale': self.view_scale.get(file_path, 1.0),
             'file_path': file_path,
-            'is_crop': is_crop_operation,
-            'has_shapes': len(self.parent.scene.items()) > 1  # More than just the pixmap item
+            'is_crop': is_crop_operation
         }
         
         # Add state to history
@@ -652,7 +645,8 @@ class ImageHandler:
         # Store edited version
         self.edited_images[file_path] = temp_pixmap.copy()
         
-        # Update edited file size
+        # Update dimensions and file size
+        self.current_dimensions[file_path] = (width, height)
         self.edited_file_sizes[file_path] = state['file_size']
         
         # Clear redo stack and disable redo button
@@ -733,9 +727,10 @@ class ImageHandler:
         pixmap_item = self.parent.scene.addPixmap(state['pixmap'])
         pixmap_item.setTransformationMode(Qt.SmoothTransformation)
         
-        # Update scene rect
-        width = state['pixmap'].width()
-        height = state['pixmap'].height()
+        # Get dimensions from state
+        width, height = state['dimensions']
+        
+        # Set scene rect
         self.parent.scene.setSceneRect(0, 0, width, height)
         
         # Update dimensions and file size
@@ -751,9 +746,26 @@ class ImageHandler:
         # Store edited version
         self.edited_images[file_path] = state['pixmap'].copy()
         
-        # Reset view and fit image
+        # Reset view transform
         self.parent.view.resetTransform()
-        self.fit_image_to_view()
+        
+        # Get view and scene rects
+        view_rect = self.parent.view.viewport().rect()
+        scene_rect = self.parent.scene.sceneRect()
+        
+        # Calculate scale to fit
+        scale_w = view_rect.width() / scene_rect.width()
+        scale_h = view_rect.height() / scene_rect.height()
+        scale = min(scale_w, scale_h)
+        
+        # Apply scale
+        self.parent.view.scale(scale, scale)
+        
+        # Center in view
+        self.parent.view.centerOn(scene_rect.center())
+        
+        # Store the view scale
+        self.view_scale[file_path] = scale
         
         # Update tool sizes
         actual_width, actual_height = self.current_dimensions[file_path]
@@ -762,6 +774,10 @@ class ImageHandler:
         
         # Update info label
         self.update_info_label()
+        
+        # Force scene update
+        self.parent.scene.update()
+        QApplication.processEvents()
 
     def _revert_to_original(self, file_path):
         """Helper method to revert to original image"""
@@ -1268,4 +1284,5 @@ class ImageHandler:
                 tool.shape_handler.handle_size = handle_size
             # Update text tool font size
             if tool_name == 'text' and hasattr(tool, 'font_size'):
+                tool.font_size = font_size  # Font size must be an integer 
                 tool.font_size = font_size  # Font size must be an integer 
