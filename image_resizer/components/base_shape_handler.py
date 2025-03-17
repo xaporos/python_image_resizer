@@ -367,6 +367,22 @@ class BaseShapeHandler:
 
     def handle_mouse_move(self, event, pos):
         """Handle mouse move for shape resizing"""
+        # First check if we're hovering over a shape and not currently moving/resizing
+        if not self.resizing and not self.moving:
+            cursor_changed = False
+            # Check if hovering over a handle
+            for handle in self.resize_handles:
+                if handle.contains(handle.mapFromScene(pos)):
+                    self.app.view.setCursor(Qt.SizeAllCursor)
+                    cursor_changed = True
+                    break
+            # Check if hovering over the selected shape
+            if not cursor_changed and self.selected_shape and self.selected_shape.contains(self.selected_shape.mapFromScene(pos)):
+                self.app.view.setCursor(Qt.SizeAllCursor)
+            elif not cursor_changed:
+                self.app.view.unsetCursor()
+
+        # Continue with existing resize/move handling
         if self.resizing and self.resize_handle:
             handle_index = self.resize_handles.index(self.resize_handle)
             if isinstance(self.selected_shape, QGraphicsLineItem):
@@ -478,6 +494,8 @@ class BaseShapeHandler:
             else:
                 self.initial_geometry = self.selected_shape.rect()
             self.update_resize_handles()
+            # Reset cursor
+            self.app.view.unsetCursor()
             return True
         return False
 
