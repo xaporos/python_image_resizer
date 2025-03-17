@@ -1,4 +1,3 @@
-
 import os
 
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QPushButton, 
@@ -10,7 +9,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DELETE_ICON_PATH = os.path.join(BASE_DIR, "assets", "delete.png")
 RENAME_ICON_PATH = os.path.join(BASE_DIR, "assets", "rename.png")
 class ImageListItemWidget(QWidget):
-    renamed = pyqtSignal(str, str)  # old_name, new_name
+    renamed = pyqtSignal(object, str)  # item, new_name
     deleted = pyqtSignal(str)  # image_name
     
     def __init__(self, image_name, parent=None):
@@ -108,7 +107,16 @@ class ImageListItemWidget(QWidget):
             QLineEdit.Normal, self.image_name
         )
         if ok and new_name and new_name != self.image_name:
-            self.renamed.emit(self.image_name, new_name)
+            # Find the parent QListWidgetItem
+            parent_list = self.parent()
+            for i in range(parent_list.count()):
+                item = parent_list.item(i)
+                if parent_list.itemWidget(item) == self:
+                    self.renamed.emit(item, new_name)
+                    # Update the internal image name
+                    self.image_name = new_name
+                    self.name_label.setText(new_name)
+                    break
             
     def delete_clicked(self):
         self.deleted.emit(self.image_name)

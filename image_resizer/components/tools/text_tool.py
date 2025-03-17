@@ -82,23 +82,18 @@ class CustomTextItem(QGraphicsTextItem):
         self.edge_hover = False
         self.edge_margin = 5  # pixels from edge where cursor changes
         
-        # Get current size preset and calculate scale
-        size_preset = self.tool.app.toolbar.size_combo.currentText()
-        if size_preset == "Small (800x600)":
-            scale_factor = 4
-        elif size_preset == "Medium (1024x768)":
-            scale_factor = 3
-        elif size_preset == "Large (1280x960)":
-            scale_factor = 2
-        else:
-            scale_factor = 1
-            
-        # Adjust base sizes for scaling
-        base_font_size = 24
+        # Get view scale
+        view = self.tool.app.view
+        view_scale = view.transform().m11()
+        
+        # Calculate scale factor based on view scale
+        # When view_scale is small (zoomed out), we want text to be larger
+        scale_factor = 1.0 / view_scale if view_scale < 1.0 else 1.0
         
         # Apply scaling
+        base_font_size = 24
         self.setDefaultTextColor(Qt.black)
-        self.setFont(QFont("Arial", base_font_size * scale_factor))
+        self.setFont(QFont("Arial", int(base_font_size * scale_factor)))
         
         # Set flags for interaction
         self.setTextInteractionFlags(Qt.TextEditorInteraction)
@@ -469,20 +464,17 @@ class TextTool(BaseTool):
             
     def update_size(self, size):
         if self.text_item:
-            # Get current scale
-            size_preset = self.app.toolbar.size_combo.currentText()
-            if size_preset == "Small (800x600)":
-                scale_factor = 4
-            elif size_preset == "Medium (1024x768)":
-                scale_factor = 3
-            elif size_preset == "Large (1280x960)":
-                scale_factor = 2
-            else:
-                scale_factor = 1
-                
+            # Get view scale
+            view = self.app.view
+            view_scale = view.transform().m11()
+            
+            # Calculate scale factor based on view scale
+            # When view_scale is small (zoomed out), we want text to be larger
+            scale_factor = 1.0 / view_scale if view_scale < 1.0 else 1.0
+            
             # Apply scaled font size
             font = self.text_item.font()
-            font.setPointSize(size * scale_factor)
+            font.setPointSize(int(size * scale_factor))
             self.text_item.setFont(font)
             self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
             self.text_item.setFocus()

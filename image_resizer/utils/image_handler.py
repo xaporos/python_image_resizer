@@ -1141,7 +1141,7 @@ class ImageHandler:
                 break 
 
     def _update_tool_sizes(self, diagonal, base_diagonal=1500.0):
-        """Update line widths and handle sizes for all tools"""
+        """Update line widths, handle sizes, and text sizes for all tools"""
         if not hasattr(self.parent, 'tool_manager'):
             return
 
@@ -1169,12 +1169,31 @@ class ImageHandler:
         if file_path in self.resized_images:
             line_scale_factor = 1.0
         else:
-            line_scale_factor = 3.0  # Higher scale factor for unresized images
+            # Calculate scale factors based on image dimensions
+            base_width = 800  # Base width for scaling calculation
+            dimension_scale = actual_width / base_width
+            line_scale_factor = min(3.0, max(1.0, dimension_scale))  # Cap at 3.0
         
-        # Base sizes - different for lines and handles
+        # For text, calculate scale based on image dimensions
+        # Reference size for text scaling (standard HD width)
+        reference_width = 1920.0
+        
+        # Calculate text scale factor based on the ratio of image width to reference width
+        # For images smaller than reference, scale up the text
+        # For images larger than reference, keep text size constant
+        if actual_width < reference_width:
+            text_scale_factor = reference_width / actual_width
+        else:
+            text_scale_factor = 1.0
+            
+        # Clamp the text scale factor to reasonable bounds
+        text_scale_factor = min(5.0, max(0.5, text_scale_factor))
+        
+        # Base sizes
         base_line_width = 2
         base_handle_size = 8
         base_arrow_size = 15
+        base_font_size = 24  # Base font size for text tool
         
         # Get view scale for this image
         view_scale = self.view_scale.get(file_path, 1.0)
@@ -1183,14 +1202,16 @@ class ImageHandler:
         line_width = max(1, base_line_width * line_scale_factor)
         handle_size = max(4, base_handle_size * handle_scale_factor)
         arrow_size = max(8, base_arrow_size * line_scale_factor)  # Arrow size follows line scaling
+        font_size = max(12, int(base_font_size * text_scale_factor))  # Scale text size based on image width
         
         print(f"Image dimensions: {actual_width}x{actual_height}")
         print(f"Line scale factor: {line_scale_factor:.2f}")
+        print(f"Text scale factor: {text_scale_factor:.2f}")
         print(f"Handle scale factor: {handle_scale_factor:.2f}")
         print(f"View scale: {view_scale:.2f}")
         print(f"Is resized: {file_path in self.resized_images}")
         print(f"Has shapes: {file_path in self.edited_images}")
-        print(f"Calculated sizes - Line: {line_width:.2f}, Handle: {handle_size:.2f}, Arrow: {arrow_size:.2f}")
+        print(f"Calculated sizes - Line: {line_width:.2f}, Handle: {handle_size:.2f}, Arrow: {arrow_size:.2f}, Font: {font_size}")
         
         # Update sizes for all tools
         for tool_name, tool in self.parent.tool_manager.tools.items():
@@ -1199,4 +1220,7 @@ class ImageHandler:
                 if tool_name == 'arrow' and hasattr(tool, 'arrow_size'):
                     tool.arrow_size = arrow_size
             if hasattr(tool, 'shape_handler') and hasattr(tool.shape_handler, 'handle_size'):
-                tool.shape_handler.handle_size = handle_size 
+                tool.shape_handler.handle_size = handle_size
+            # Update text tool font size
+            if tool_name == 'text' and hasattr(tool, 'font_size'):
+                tool.font_size = font_size  # Font size must be an integer 
