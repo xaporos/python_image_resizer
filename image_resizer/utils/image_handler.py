@@ -222,6 +222,9 @@ class ImageHandler:
                 # For unmodified images, use the original
                 original_image = self.images.get(file_path)
                 if original_image:
+                    # Convert PIL image to RGB if it's RGBA
+                    if original_image.mode == 'RGBA':
+                        original_image = original_image.convert('RGB')
                     img_array = np.array(original_image)
                     if len(img_array.shape) == 3:  # Color image
                         array_height, array_width, channels = img_array.shape
@@ -237,10 +240,29 @@ class ImageHandler:
                 QMessageBox.critical(self.parent, "Error", "Could not get image data to save.")
                 return
             
-            # Save with appropriate quality
+            # Convert pixmap to RGB if saving as JPEG
             save_ext = os.path.splitext(save_path)[1].lower()
             if save_ext in ['.jpg', '.jpeg']:
-                # Use current quality setting for both .jpg and .jpeg
+                # Convert to RGB by saving to a temporary buffer and reloading
+                temp_buffer = QByteArray()
+                buffer = QBuffer(temp_buffer)
+                buffer.open(QBuffer.WriteOnly)
+                pixmap.save(buffer, 'PNG')  # Save as PNG to preserve quality
+                buffer.close()
+                
+                # Load as PIL image, convert to RGB, and back to QPixmap
+                pil_image = Image.open(BytesIO(temp_buffer.data()))
+                if pil_image.mode == 'RGBA':
+                    pil_image = pil_image.convert('RGB')
+                
+                # Convert back to QPixmap
+                img_byte_arr = BytesIO()
+                pil_image.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                qimage = QImage.fromData(img_byte_arr.getvalue())
+                pixmap = QPixmap.fromImage(qimage)
+                
+                # Save with quality setting
                 quality = self.parent.toolbar.quality_slider.value()
                 pixmap.save(save_path, 'JPEG', quality)
             else:
@@ -953,6 +975,9 @@ class ImageHandler:
                         # For unmodified images, use the original
                         original_image = self.images.get(file_path)
                         if original_image:
+                            # Convert PIL image to RGB if it's RGBA
+                            if original_image.mode == 'RGBA':
+                                original_image = original_image.convert('RGB')
                             img_array = np.array(original_image)
                             if len(img_array.shape) == 3:  # Color image
                                 array_height, array_width, channels = img_array.shape
@@ -968,10 +993,29 @@ class ImageHandler:
                         failed_count += 1
                         continue
                     
-                    # Save with appropriate quality
+                    # Convert pixmap to RGB if saving as JPEG
                     save_ext = os.path.splitext(save_path)[1].lower()
                     if save_ext in ['.jpg', '.jpeg']:
-                        # Use current quality setting for both .jpg and .jpeg
+                        # Convert to RGB by saving to a temporary buffer and reloading
+                        temp_buffer = QByteArray()
+                        buffer = QBuffer(temp_buffer)
+                        buffer.open(QBuffer.WriteOnly)
+                        pixmap.save(buffer, 'PNG')  # Save as PNG to preserve quality
+                        buffer.close()
+                        
+                        # Load as PIL image, convert to RGB, and back to QPixmap
+                        pil_image = Image.open(BytesIO(temp_buffer.data()))
+                        if pil_image.mode == 'RGBA':
+                            pil_image = pil_image.convert('RGB')
+                        
+                        # Convert back to QPixmap
+                        img_byte_arr = BytesIO()
+                        pil_image.save(img_byte_arr, format='PNG')
+                        img_byte_arr.seek(0)
+                        qimage = QImage.fromData(img_byte_arr.getvalue())
+                        pixmap = QPixmap.fromImage(qimage)
+                        
+                        # Save with quality setting
                         quality = self.parent.toolbar.quality_slider.value()
                         pixmap.save(save_path, 'JPEG', quality)
                     else:
@@ -992,6 +1036,7 @@ class ImageHandler:
                     
                 except Exception as e:
                     failed_count += 1
+                    print(f"Error saving {save_path}: {str(e)}")
                     
         except Exception as e:
             QMessageBox.warning(
