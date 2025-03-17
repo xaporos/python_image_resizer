@@ -213,79 +213,49 @@ class ImageHandler:
                 )
                 return
             
-            # For cropped images, use the edited image directly
+            # Get the pixmap to save
+            pixmap = None
             if file_path in self.edited_images:
+                # For images with shapes, use the edited image directly
                 pixmap = self.edited_images[file_path]
-            else:
-                # For images with shapes but not resized, we need to preserve original dimensions
-                if has_shapes and not is_resized:
-                    # Get the original image
-                    original_image = self.images.get(file_path)
-                    if original_image:
-                        # Get the original dimensions
-                        original_width, original_height = original_image.size
-                        
-                        # Create a new pixmap with the exact original dimensions
-                        temp_pixmap = QPixmap(original_width, original_height)
-                        temp_pixmap.fill(Qt.transparent)
-                        
-                        # Create a painter to draw on the pixmap
-                        painter = QPainter(temp_pixmap)
-                        painter.setRenderHint(QPainter.Antialiasing, True)
-                        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-                        painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
-                        
-                        # Get the current scene
-                        scene_rect = self.parent.scene.sceneRect()
-                        
-                        # Calculate the scale factors to maintain aspect ratio
-                        scale_x = original_width / scene_rect.width()
-                        scale_y = original_height / scene_rect.height()
-                        
-                        # Apply the transformation to maintain original dimensions
-                        painter.scale(scale_x, scale_y)
-                        
-                        # Render the scene to the pixmap
-                        self.parent.scene.render(painter, QRectF(), scene_rect)
-                        painter.end()
-                        
-                        # Use this pixmap for saving
-                        pixmap = temp_pixmap
-                    else:
-                        # Fallback to getting pixmap from edited_images
-                        pixmap = self.edited_images.get(file_path)
-                else:
-                    # For resized images or if we couldn't get original dimensions
-                    pixmap = self.edited_images.get(file_path)
+            elif original_file_exists:
+                # For unmodified images, use the original
+                original_image = self.images.get(file_path)
+                if original_image:
+                    img_array = np.array(original_image)
+                    if len(img_array.shape) == 3:  # Color image
+                        array_height, array_width, channels = img_array.shape
+                        bytes_per_line = channels * array_width
+                        qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
+                    else:  # Grayscale image
+                        array_height, array_width = img_array.shape
+                        bytes_per_line = array_width
+                        qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
+                    pixmap = QPixmap.fromImage(qimage)
             
             if not pixmap:
-                # If no pixmap in scene, try to get it from edited_images
-                if file_path in self.edited_images:
-                    pixmap = self.edited_images[file_path]
-                # If still no pixmap and original exists, try to load from original
-                elif original_file_exists:
-                    original_image = self.images.get(file_path)
-                    if original_image:
-                        img_array = np.array(original_image)
-                        if len(img_array.shape) == 3:  # Color image
-                            array_height, array_width, channels = img_array.shape
-                            bytes_per_line = channels * array_width
-                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
-                        else:  # Grayscale image
-                            array_height, array_width = img_array.shape
-                            bytes_per_line = array_width
-                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
-                        pixmap = QPixmap.fromImage(qimage)
-                
-                if not pixmap:
-                    QMessageBox.critical(self.parent, "Error", "Could not get image data to save.")
-                    return
+                QMessageBox.critical(self.parent, "Error", "Could not get image data to save.")
+                return
             
-            # Save with maximum quality to preserve exact appearance
-            if save_path.lower().endswith(('.jpg', '.jpeg')):
-                pixmap.save(save_path, 'JPEG', 100)  # Always use 100 quality to preserve exact appearance
+            # Save with appropriate quality
+            save_ext = os.path.splitext(save_path)[1].lower()
+            if save_ext in ['.jpg', '.jpeg']:
+                # Use current quality setting for both .jpg and .jpeg
+                quality = self.parent.toolbar.quality_slider.value()
+                pixmap.save(save_path, 'JPEG', quality)
             else:
-                pixmap.save(save_path, 'PNG')  # PNG is lossless
+                # For other formats, use their native format
+                format_map = {
+                    '.png': ('PNG', -1),  # -1 means maximum compression for PNG
+                    '.gif': ('GIF', None),
+                    '.bmp': ('BMP', None),
+                    '.tiff': ('TIFF', None)
+                }
+                img_format, quality = format_map.get(save_ext, ('PNG', -1))
+                if quality is not None:
+                    pixmap.save(save_path, img_format, quality)
+                else:
+                    pixmap.save(save_path, img_format)
             
             # Show appropriate success message
             if original_file_exists:
@@ -293,13 +263,10 @@ class ImageHandler:
                 new_size = os.path.getsize(save_path)
                 orig_mb, new_mb, reduction = self.resizer.calculate_statistics(original_size, new_size)
                 
-                # Check if the file got larger (negative reduction)
                 if reduction < 0:
-                    # Simplified message for negative reduction (file got larger)
                     message = (f"Image saved successfully!\n\n"
                               f"Size: {new_mb:.2f} MB")
                 else:
-                    # Regular message with reduction percentage
                     if is_resized:
                         message = (f"Resized image saved successfully!\n\n"
                                   f"Original size: {orig_mb:.2f} MB\n"
@@ -619,15 +586,26 @@ class ImageHandler:
                     current_tool.deactivate()
                     QApplication.processEvents()
         
-        # Get scene rect and create pixmap
-        scene_rect = self.parent.scene.sceneRect()
-        temp_pixmap = QPixmap(int(scene_rect.width()), int(scene_rect.height()))
-        temp_pixmap.fill(Qt.white)
+        # Get original dimensions
+        width, height = self.original_dimensions.get(file_path, (0, 0))
+        if file_path in self.resized_images:
+            width, height = self.current_dimensions.get(file_path, (0, 0))
         
-        # Render scene to pixmap
+        # Create pixmap with correct dimensions
+        temp_pixmap = QPixmap(width, height)
+        temp_pixmap.fill(Qt.transparent)
+        
+        # Create painter with high quality settings
         painter = QPainter(temp_pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        self.parent.scene.render(painter, QRectF(), scene_rect)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
+        
+        # Get the scene rect
+        scene_rect = self.parent.scene.sceneRect()
+        
+        # Render the scene at the correct dimensions
+        self.parent.scene.render(painter, QRectF(0, 0, width, height), scene_rect)
         painter.end()
         
         # Initialize history if needed
@@ -637,8 +615,8 @@ class ImageHandler:
         # Create state
         state = {
             'pixmap': temp_pixmap,
-            'dimensions': self.current_dimensions.get(file_path, (0, 0)),
-            'file_size': self.edited_file_sizes.get(file_path, 0),
+            'dimensions': (width, height),
+            'file_size': self.calculate_file_size(temp_pixmap),
             'is_resized': file_path in self.resized_images,
             'view_scale': self.view_scale.get(file_path, 1.0),
             'file_path': file_path,
@@ -651,6 +629,9 @@ class ImageHandler:
         
         # Store edited version
         self.edited_images[file_path] = temp_pixmap.copy()
+        
+        # Update edited file size
+        self.edited_file_sizes[file_path] = state['file_size']
         
         # Clear redo stack and disable redo button
         if file_path in self.image_redo_stacks:
@@ -869,7 +850,6 @@ class ImageHandler:
 
     def calculate_file_size(self, pixmap, quality=80):
         """Calculate file size based on pixmap data using the same format that will be used for saving"""
-        from PyQt5.QtCore import QByteArray, QBuffer
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.WriteOnly)
@@ -882,18 +862,29 @@ class ImageHandler:
                 # Get file extension
                 file_ext = os.path.splitext(file_path)[1].lower()
                 
-                # Use JPEG for jpg/jpeg files with quality setting
+                # Use same quality setting for both .jpg and .jpeg
                 if file_ext in ['.jpg', '.jpeg']:
+                    quality = self.parent.toolbar.quality_slider.value()
                     pixmap.save(buffer, "JPEG", quality)
                 else:
-                    # For PNG and other formats, use PNG format with maximum compression
-                    pixmap.save(buffer, "PNG", -1)  # -1 means maximum compression
+                    # For other formats, use their native format
+                    format_map = {
+                        '.png': ('PNG', -1),
+                        '.gif': ('GIF', None),
+                        '.bmp': ('BMP', None),
+                        '.tiff': ('TIFF', None)
+                    }
+                    img_format, quality = format_map.get(file_ext, ('PNG', -1))
+                    if quality is not None:
+                        pixmap.save(buffer, img_format, quality)
+                    else:
+                        pixmap.save(buffer, img_format)
                 
                 size_in_mb = byte_array.size() / (1024 * 1024)
                 buffer.close()
                 return size_in_mb
         
-        # Default to PNG if no file path available
+        # Default to PNG with maximum compression if no file path available
         pixmap.save(buffer, "PNG", -1)
         size_in_mb = byte_array.size() / (1024 * 1024)
         buffer.close()
@@ -917,28 +908,22 @@ class ImageHandler:
         current_item = self.parent.image_list.currentItem()
         
         try:
-            # Process each image in the list
-            total_images = self.parent.image_list.count()
-            print(f"Total images to process: {total_images}")
-            
             # First, collect all items to process to avoid issues with renamed images
             items_to_process = []
-            for i in range(total_images):
+            for i in range(self.parent.image_list.count()):
                 item = self.parent.image_list.item(i)
                 file_path = self.get_file_path_from_item(item)
                 if file_path:
                     items_to_process.append((item, file_path))
             
-            # Now process each item
-            for i, (item, file_path) in enumerate(items_to_process):
-                print(f"Processing image {i + 1}/{len(items_to_process)}: {os.path.basename(file_path)}")
-                
+            # Process each item
+            for item, file_path in items_to_process:
                 # Check if the image has been modified
                 has_shapes = file_path in self.edited_images  # Has shapes or other edits
                 is_resized = file_path in self.resized_images  # Has been explicitly resized
                 is_modified = has_shapes or is_resized
                 
-                # Check if the original file exists (it might not if the image was renamed)
+                # Check if the original file exists
                 original_file_exists = os.path.exists(file_path)
                 
                 # Create save path with proper extension
@@ -947,87 +932,25 @@ class ImageHandler:
                 
                 # Ensure we have a valid extension
                 if not original_ext or original_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
-                    print(f"No valid extension found, using .jpg for: {base_name}")
                     original_ext = '.jpg'
                 
                 save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
-                print(f"Saving to: {save_path}")
                 
                 try:
                     if not is_modified and original_file_exists:
-                        # If not modified at all and original file exists, just copy the original file
+                        # If not modified at all and original exists, just copy
                         import shutil
                         shutil.copy2(file_path, save_path)
                         success_count += 1
-                        print(f"Successfully saved original: {os.path.basename(save_path)}")
                         continue
                     
-                    # For cropped images, use the edited image directly
+                    # Get the pixmap to save
+                    pixmap = None
                     if file_path in self.edited_images:
+                        # For images with shapes, use the edited image directly
                         pixmap = self.edited_images[file_path]
-                    else:
-                        # For images with shapes but not resized, we need to preserve original dimensions
-                        if has_shapes and not is_resized:
-                            # First, select the item to make it the current item
-                            self.parent.image_list.setCurrentItem(item)
-                            QApplication.processEvents()  # Process events to ensure the scene is updated
-                            
-                            # Get the original image
-                            original_image = self.images.get(file_path)
-                            if original_image:
-                                # Get the original dimensions
-                                original_width, original_height = original_image.size
-                                
-                                # Create a new pixmap with the exact original dimensions
-                                temp_pixmap = QPixmap(original_width, original_height)
-                                temp_pixmap.fill(Qt.transparent)
-                                
-                                # Create a painter to draw on the pixmap
-                                painter = QPainter(temp_pixmap)
-                                painter.setRenderHint(QPainter.Antialiasing, True)
-                                painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-                                painter.setRenderHint(QPainter.HighQualityAntialiasing, True)
-                                
-                                # Get the current scene
-                                scene_rect = self.parent.scene.sceneRect()
-                                
-                                # Calculate the scale factors to maintain aspect ratio
-                                scale_x = original_width / scene_rect.width()
-                                scale_y = original_height / scene_rect.height()
-                                
-                                # Apply the transformation to maintain original dimensions
-                                painter.scale(scale_x, scale_y)
-                                
-                                # Render the scene to the pixmap
-                                self.parent.scene.render(painter, QRectF(), scene_rect)
-                                painter.end()
-                                
-                                # Use this pixmap for saving
-                                pixmap = temp_pixmap
-                            else:
-                                # Fallback to getting pixmap from edited_images
-                                pixmap = self.edited_images.get(file_path)
-                        else:
-                            # For resized images or if we couldn't get original dimensions
-                            pixmap = self.edited_images.get(file_path)
-                    
-                    # If still no pixmap and original exists, try to load from original
-                    if not pixmap and original_file_exists:
-                        original_image = self.images.get(file_path)
-                        if original_image:
-                            img_array = np.array(original_image)
-                            if len(img_array.shape) == 3:  # Color image
-                                array_height, array_width, channels = img_array.shape
-                                bytes_per_line = channels * array_width
-                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
-                            else:  # Grayscale image
-                                array_height, array_width = img_array.shape
-                                bytes_per_line = array_width
-                                qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
-                            pixmap = QPixmap.fromImage(qimage)
-                    
-                    # If still no pixmap, try to get it from the images dictionary directly
-                    if not pixmap and file_path in self.images:
+                    elif original_file_exists:
+                        # For unmodified images, use the original
                         original_image = self.images.get(file_path)
                         if original_image:
                             img_array = np.array(original_image)
@@ -1042,25 +965,35 @@ class ImageHandler:
                             pixmap = QPixmap.fromImage(qimage)
                     
                     if not pixmap:
-                        print(f"No pixmap found for: {os.path.basename(file_path)}")
                         failed_count += 1
                         continue
                     
-                    # Save with maximum quality to preserve exact appearance
-                    if save_path.lower().endswith(('.jpg', '.jpeg')):
-                        pixmap.save(save_path, 'JPEG', 100)  # Always use 100 quality to preserve exact appearance
+                    # Save with appropriate quality
+                    save_ext = os.path.splitext(save_path)[1].lower()
+                    if save_ext in ['.jpg', '.jpeg']:
+                        # Use current quality setting for both .jpg and .jpeg
+                        quality = self.parent.toolbar.quality_slider.value()
+                        pixmap.save(save_path, 'JPEG', quality)
                     else:
-                        pixmap.save(save_path, 'PNG')  # PNG is lossless
-                        
+                        # For other formats, use their native format
+                        format_map = {
+                            '.png': ('PNG', -1),  # -1 means maximum compression for PNG
+                            '.gif': ('GIF', None),
+                            '.bmp': ('BMP', None),
+                            '.tiff': ('TIFF', None)
+                        }
+                        img_format, quality = format_map.get(save_ext, ('PNG', -1))
+                        if quality is not None:
+                            pixmap.save(save_path, img_format, quality)
+                        else:
+                            pixmap.save(save_path, img_format)
+                    
                     success_count += 1
-                    print(f"Successfully saved: {os.path.basename(save_path)}")
                     
                 except Exception as e:
-                    print(f"Failed to save {os.path.basename(save_path)}: {str(e)}")
                     failed_count += 1
                     
         except Exception as e:
-            print(f"Error in save_all: {str(e)}")
             QMessageBox.warning(
                 self.parent,
                 "Warning",
