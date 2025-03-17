@@ -77,17 +77,16 @@ class CustomTextItem(QGraphicsTextItem):
         self.editing = True
         self.finalized = False
         self.setAcceptHoverEvents(True)
-        self.first_click = True  # Add flag for first click
+        self.first_click = True
         self.edge_dragging = False
         self.edge_hover = False
-        self.edge_margin = 5  # pixels from edge where cursor changes
+        self.edge_margin = 10  # Increased margin for easier edge detection
         
         # Get view scale
         view = self.tool.app.view
         view_scale = view.transform().m11()
         
         # Calculate scale factor based on view scale
-        # When view_scale is small (zoomed out), we want text to be larger
         scale_factor = 1.0 / view_scale if view_scale < 1.0 else 1.0
         
         # Apply scaling
@@ -124,17 +123,18 @@ class CustomTextItem(QGraphicsTextItem):
                 self.setPlainText("Click to type")
         super().focusOutEvent(event)
         
+    def is_near_edge(self, pos):
+        """Check if the position is near any edge of the text item"""
+        rect = self.boundingRect()
+        return (pos.x() <= self.edge_margin or  # Left edge
+                pos.x() >= rect.width() - self.edge_margin or  # Right edge
+                pos.y() <= self.edge_margin or  # Top edge
+                pos.y() >= rect.height() - self.edge_margin)  # Bottom edge
+        
     def hoverMoveEvent(self, event):
         if not self.finalized:
-            # Check if we're near the edges
-            rect = self.boundingRect()
             pos = event.pos()
-            near_edge = (pos.x() <= self.edge_margin or 
-                        pos.x() >= rect.width() - self.edge_margin or
-                        pos.y() <= self.edge_margin or 
-                        pos.y() >= rect.height() - self.edge_margin)
-            
-            if near_edge:
+            if self.is_near_edge(pos):
                 self.setCursor(Qt.SizeAllCursor)
                 self.edge_hover = True
             else:
@@ -148,11 +148,12 @@ class CustomTextItem(QGraphicsTextItem):
                 super().mousePressEvent(event)
             return
             
-        if event.button() == Qt.LeftButton and self.edge_hover:
+        pos = event.pos()
+        if event.button() == Qt.LeftButton and self.is_near_edge(pos):
             self.edge_dragging = True
             self.setTextInteractionFlags(Qt.NoTextInteraction)
             self.setCursor(Qt.SizeAllCursor)
-            super().mousePressEvent(event)
+            super().mousePressEvent(event)  # Call super to enable dragging
             event.accept()
             return
             
@@ -169,10 +170,14 @@ class CustomTextItem(QGraphicsTextItem):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.edge_dragging = False
-            if self.edge_hover:
+            pos = event.pos()
+            if self.is_near_edge(pos):
                 self.setCursor(Qt.SizeAllCursor)
             else:
                 self.setCursor(Qt.IBeamCursor)
+            # Only restore text interaction if we're not near an edge
+            if not self.is_near_edge(pos):
+                self.setTextInteractionFlags(Qt.TextEditorInteraction)
         super().mouseReleaseEvent(event)
         
     def mouseMoveEvent(self, event):
