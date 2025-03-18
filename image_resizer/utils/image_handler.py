@@ -709,9 +709,27 @@ class ImageHandler:
         if self.image_histories[current_file_path]:
             prev_state = self.image_histories[current_file_path][-1]
             self._apply_state(prev_state, current_file_path)
+            
+            # Update file size label with the current state's file size
+            current_file_size = self.calculate_file_size(prev_state['pixmap'])
+            self.edited_file_sizes[current_file_path] = current_file_size
+            self.parent.file_size_label.setText(f"File size: {current_file_size:.2f}MB")
+            
+            # Force UI update
+            self.parent.file_size_label.repaint()
+            QApplication.processEvents()
         else:
             # If no more history, revert to original
             self._revert_to_original(current_file_path)
+            
+            # Update file size label with original file size
+            original_file_size = self.file_sizes[current_file_path]
+            self.edited_file_sizes[current_file_path] = original_file_size
+            self.parent.file_size_label.setText(f"File size: {original_file_size:.2f}MB")
+            
+            # Force UI update
+            self.parent.file_size_label.repaint()
+            QApplication.processEvents()
         
         # Update button states
         self.parent.toolbar.undo_btn.setEnabled(len(self.image_histories.get(current_file_path, [])) > 0)
@@ -733,9 +751,12 @@ class ImageHandler:
         # Set scene rect
         self.parent.scene.setSceneRect(0, 0, width, height)
         
+        # Calculate current file size
+        current_file_size = self.calculate_file_size(state['pixmap'])
+        
         # Update dimensions and file size
         self.current_dimensions[file_path] = state['dimensions']
-        self.edited_file_sizes[file_path] = state['file_size']
+        self.edited_file_sizes[file_path] = current_file_size
         
         # Update resize state
         if state['is_resized']:
@@ -772,8 +793,9 @@ class ImageHandler:
         diagonal = (actual_width**2 + actual_height**2)**0.5
         self._update_tool_sizes(diagonal)
         
-        # Update info label
-        self.update_info_label()
+        # Update info labels with current dimensions and file size
+        self.parent.size_label.setText(f"Size: {width} × {height}px")
+        self.parent.file_size_label.setText(f"File size: {current_file_size:.2f}MB")
         
         # Force scene update
         self.parent.scene.update()
