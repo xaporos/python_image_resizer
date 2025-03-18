@@ -37,6 +37,12 @@ class Toolbar(QWidget):
         # Initially disable drawing tools
         self.set_drawing_tools_enabled(False)
         
+        # Initialize button states
+        self.resize_btn.setEnabled(False)
+        self.resize_all_btn.setEnabled(False)
+        self.undo_btn.setEnabled(False)
+        self.redo_btn.setEnabled(False)
+        
     def connect_signals(self):
         """Connect all toolbar signals"""
         self.quality_slider.valueChanged.connect(self.quality_changed)
