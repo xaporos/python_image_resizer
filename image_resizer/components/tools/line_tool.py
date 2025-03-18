@@ -71,10 +71,6 @@ class LineTool(BaseTool):
             line = QLineF(self.start_point, pos)
             self.line_item.setLine(line)
             
-            # Save state before selecting the shape
-            if hasattr(self.app, 'image_handler'):
-                self.app.image_handler.save_state()
-            
             # Select the shape but stay in line tool
             self.shape_handler.select_shape(self.line_item)
             

@@ -1,11 +1,11 @@
 from PyQt5.QtWidgets import QGraphicsPixmapItem
-from .crop_tool import CropTool
-from .pencil_tool import PencilTool
-from .arrow_tool import ArrowTool
-from .circle_tool import CircleTool
-from .rectangle_tool import RectangleTool
-from .text_tool import TextTool
-from .line_tool import LineTool
+from image_resizer.components.tools.crop_tool import CropTool
+from image_resizer.components.tools.pencil_tool import PencilTool
+from image_resizer.components.tools.arrow_tool import ArrowTool
+from image_resizer.components.tools.circle_tool import CircleTool
+from image_resizer.components.tools.rectangle_tool import RectangleTool
+from image_resizer.components.tools.text_tool import TextTool
+from image_resizer.components.tools.line_tool import LineTool
 
 class ToolManager:
     def __init__(self, app):
