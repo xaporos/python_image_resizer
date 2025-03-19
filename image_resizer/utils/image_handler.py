@@ -710,6 +710,14 @@ class ImageHandler:
             prev_state = self.image_histories[current_file_path][-1]
             self._apply_state(prev_state, current_file_path)
             
+            # If we just undid a resize operation, clear redo stack and disable redo button
+            if current_state.get('is_resized', False) and not prev_state.get('is_resized', False):
+                self.image_redo_stacks[current_file_path].clear()
+                self.parent.toolbar.redo_btn.setEnabled(False)
+            else:
+                # Update redo button state normally
+                self.parent.toolbar.redo_btn.setEnabled(len(self.image_redo_stacks.get(current_file_path, [])) > 0)
+            
             # Update file size label with the current state's file size
             current_file_size = self.calculate_file_size(prev_state['pixmap'])
             self.edited_file_sizes[current_file_path] = current_file_size
@@ -731,9 +739,8 @@ class ImageHandler:
             self.parent.file_size_label.repaint()
             QApplication.processEvents()
         
-        # Update button states
+        # Update undo button state
         self.parent.toolbar.undo_btn.setEnabled(len(self.image_histories.get(current_file_path, [])) > 0)
-        self.parent.toolbar.redo_btn.setEnabled(len(self.image_redo_stacks.get(current_file_path, [])) > 0)
 
     def _apply_state(self, state, file_path):
         """Helper method to apply a state"""
