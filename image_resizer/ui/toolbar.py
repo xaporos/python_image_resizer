@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar, QFrame
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
@@ -25,7 +25,7 @@ class Toolbar(QWidget):
         self.layout = QHBoxLayout(self)
         self.layout.setSpacing(10)
         # Set smaller vertical margins for the toolbar
-        self.layout.setContentsMargins(2, 0, 2, 0)
+        self.layout.setContentsMargins(62, 0, 2, 0)
         # Set fixed height for the toolbar
         self.setFixedHeight(40)
         # Keep track of drawing tool buttons for easy access
@@ -89,7 +89,11 @@ class Toolbar(QWidget):
         left_section.addWidget(self.save_all_btn)
         
         main_layout.addLayout(left_section)
-        main_layout.addStretch(1)
+    
+        v_line = QFrame()
+        v_line.setFrameShape(QFrame.VLine)
+        v_line.setFrameShadow(QFrame.Sunken)
+        main_layout.addWidget(v_line)
         
         # Add undo/redo buttons
         self.undo_btn = QPushButton("")
@@ -107,17 +111,6 @@ class Toolbar(QWidget):
         main_layout.addWidget(self.redo_btn)
         
         main_layout.addStretch(1)
-        
-        # Add resize buttons
-        self.resize_btn = QPushButton("Resize")
-        self.resize_btn.setFixedSize(80, button_size)
-        self.resize_btn.setStyleSheet(BUTTON_STYLE)
-        main_layout.addWidget(self.resize_btn)
-        
-        self.resize_all_btn = QPushButton("Resize All")
-        self.resize_all_btn.setFixedSize(90, button_size)
-        self.resize_all_btn.setStyleSheet(BUTTON_STYLE)
-        main_layout.addWidget(self.resize_all_btn)
         
         self.layout.addWidget(main_container)
 

@@ -12,7 +12,7 @@ class ToolsToolbar(QWidget):
         
         # Create main layout
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(5, 5, 5, 5)
+        self.layout.setContentsMargins(10, 5, 5, 5)
         self.layout.setSpacing(5)
         
         # Set fixed width for the toolbar
