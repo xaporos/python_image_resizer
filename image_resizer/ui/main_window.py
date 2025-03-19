@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QKeySequence
 from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE
 from image_resizer.ui.toolbar import Toolbar
+from image_resizer.ui.tools_toolbar import ToolsToolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
 from image_resizer.components.tools.tool_manager import ToolManager
@@ -28,7 +29,7 @@ class ImageResizerApp(QMainWindow):
         self.main_layout.setSpacing(10)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Create left side container for toolbar and preview
+        # Create left side container for toolbar and content
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setSpacing(10)
@@ -45,6 +46,14 @@ class ImageResizerApp(QMainWindow):
         # Create toolbar after handlers are initialized
         self.toolbar = Toolbar(self)
         left_layout.addWidget(self.toolbar)
+        
+        # Create horizontal layout for tools and preview
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(10)
+        
+        # Create tools toolbar
+        self.tools_toolbar = ToolsToolbar(self)
+        content_layout.addWidget(self.tools_toolbar)
         
         # Create preview area with matching style
         preview_layout = QVBoxLayout()
@@ -117,8 +126,11 @@ class ImageResizerApp(QMainWindow):
         # Add bottom container to preview layout
         preview_layout.addWidget(bottom_container)
         
-        # Add preview layout to left container
-        left_layout.addLayout(preview_layout)
+        # Add preview layout to content layout
+        content_layout.addLayout(preview_layout)
+        
+        # Add content layout to left container
+        left_layout.addLayout(content_layout)
         
         # Add left container to main layout
         self.main_layout.addWidget(left_container)
@@ -154,13 +166,13 @@ class ImageResizerApp(QMainWindow):
         self.image_list.currentItemChanged.connect(self.update_ui_state)
         
         # Connect tool buttons
-        self.toolbar.crop_btn.clicked.connect(lambda: self.set_tool('crop'))
-        self.toolbar.pencil_btn.clicked.connect(lambda: self.set_tool('pencil'))
-        self.toolbar.line_btn.clicked.connect(lambda: self.set_tool('line'))
-        self.toolbar.arrow_btn.clicked.connect(lambda: self.set_tool('arrow'))
-        self.toolbar.circle_btn.clicked.connect(lambda: self.set_tool('circle'))
-        self.toolbar.rect_btn.clicked.connect(lambda: self.set_tool('rectangle'))
-        self.toolbar.text_btn.clicked.connect(lambda: self.set_tool('text'))
+        self.tools_toolbar.crop_btn.clicked.connect(lambda: self.set_tool('crop'))
+        self.tools_toolbar.pencil_btn.clicked.connect(lambda: self.set_tool('pencil'))
+        self.tools_toolbar.line_btn.clicked.connect(lambda: self.set_tool('line'))
+        self.tools_toolbar.arrow_btn.clicked.connect(lambda: self.set_tool('arrow'))
+        self.tools_toolbar.circle_btn.clicked.connect(lambda: self.set_tool('circle'))
+        self.tools_toolbar.rect_btn.clicked.connect(lambda: self.set_tool('rectangle'))
+        self.tools_toolbar.text_btn.clicked.connect(lambda: self.set_tool('text'))
         
         # Connect undo/redo buttons
         self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
@@ -172,15 +184,6 @@ class ImageResizerApp(QMainWindow):
         # Add tooltips with shortcuts for undo/redo buttons
         self.toolbar.undo_btn.setToolTip("Undo (Ctrl+Z)")
         self.toolbar.redo_btn.setToolTip("Redo (Ctrl+Y)")
-
-    def select_files(self):
-        pass  # We'll implement this later
-        
-    def resize_image(self):
-        pass  # We'll implement this later
-        
-    def resize_all_images(self):
-        pass  # We'll implement this later
         
     def set_tool(self, tool_name):
         """Set the current drawing tool"""
@@ -192,13 +195,13 @@ class ImageResizerApp(QMainWindow):
         
         # Update button states
         tool_buttons = {
-            'crop': self.toolbar.crop_btn,
-            'pencil': self.toolbar.pencil_btn,
-            'line': self.toolbar.line_btn,
-            'arrow': self.toolbar.arrow_btn,
-            'circle': self.toolbar.circle_btn,
-            'rectangle': self.toolbar.rect_btn,
-            'text': self.toolbar.text_btn,
+            'crop': self.tools_toolbar.crop_btn,
+            'pencil': self.tools_toolbar.pencil_btn,
+            'line': self.tools_toolbar.line_btn,
+            'arrow': self.tools_toolbar.arrow_btn,
+            'circle': self.tools_toolbar.circle_btn,
+            'rectangle': self.tools_toolbar.rect_btn,
+            'text': self.tools_toolbar.text_btn,
         }
         
         # Uncheck all buttons
@@ -208,6 +211,27 @@ class ImageResizerApp(QMainWindow):
         # Check the selected tool's button
         if tool_name in tool_buttons:
             tool_buttons[tool_name].setChecked(True)
+            
+    def update_ui_state(self, current, previous):
+        """Update UI elements based on current state"""
+        # Update previous item's selection state
+        if previous:
+            prev_widget = self.image_list.itemWidget(previous)
+            if prev_widget:
+                prev_widget.set_selected(False)
+                
+        # Update current item's selection state
+        if current:
+            curr_widget = self.image_list.itemWidget(current)
+            if curr_widget:
+                curr_widget.set_selected(True)
+        
+        # Enable/disable drawing tools based on image selection
+        has_image = current is not None
+        self.tools_toolbar.set_tools_enabled(has_image)
+        
+        # Call the original image selected handler
+        self.image_handler.image_selected(current, previous)
 
     def mouse_press(self, event):
         self.tool_manager.handle_mouse_press(event)
@@ -268,27 +292,6 @@ class ImageResizerApp(QMainWindow):
         self.image_list.setItemWidget(item, widget)
         # Initially set as not selected
         widget.set_selected(False)
-
-    def update_ui_state(self, current, previous):
-        """Update UI elements based on current state"""
-        # Update previous item's selection state
-        if previous:
-            prev_widget = self.image_list.itemWidget(previous)
-            if prev_widget:
-                prev_widget.set_selected(False)
-                
-        # Update current item's selection state
-        if current:
-            curr_widget = self.image_list.itemWidget(current)
-            if curr_widget:
-                curr_widget.set_selected(True)
-        
-        # Enable/disable drawing tools based on image selection
-        has_image = current is not None
-        self.toolbar.set_drawing_tools_enabled(has_image)
-        
-        # Call the original image selected handler
-        self.image_handler.image_selected(current, previous)
 
     def handle_item_selection(self, item):
         """Handle explicit item selection"""
