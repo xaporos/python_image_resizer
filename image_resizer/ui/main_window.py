@@ -24,9 +24,15 @@ class ImageResizerApp(QMainWindow):
         # Create central widget and main layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout = QHBoxLayout(self.central_widget)
         self.main_layout.setSpacing(10)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Create left side container for toolbar and preview
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setSpacing(10)
+        left_layout.setContentsMargins(0, 0, 0, 0)
         
         # Create scene and view first
         self.scene = QGraphicsScene()
@@ -38,20 +44,7 @@ class ImageResizerApp(QMainWindow):
         
         # Create toolbar after handlers are initialized
         self.toolbar = Toolbar(self)
-        self.main_layout.addWidget(self.toolbar)
-        
-        # Create horizontal layout for list and preview
-        content_layout = QHBoxLayout()
-        
-        # Create image list with modern styling
-        self.image_list = QListWidget()
-        self.image_list.setMinimumWidth(280)
-        self.image_list.setMaximumWidth(280)
-        self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
-        # Add selection mode and behavior settings
-        self.image_list.setSelectionMode(QListWidget.SingleSelection)
-        self.image_list.setSelectionBehavior(QListWidget.SelectItems)
-        content_layout.addWidget(self.image_list)
+        left_layout.addWidget(self.toolbar)
         
         # Create preview area with matching style
         preview_layout = QVBoxLayout()
@@ -124,11 +117,23 @@ class ImageResizerApp(QMainWindow):
         # Add bottom container to preview layout
         preview_layout.addWidget(bottom_container)
         
-        # Add preview layout to content layout
-        content_layout.addLayout(preview_layout)
+        # Add preview layout to left container
+        left_layout.addLayout(preview_layout)
         
-        # Add content layout to main layout
-        self.main_layout.addLayout(content_layout)
+        # Add left container to main layout
+        self.main_layout.addWidget(left_container)
+        
+        # Create image list with modern styling
+        self.image_list = QListWidget()
+        self.image_list.setMinimumWidth(280)
+        self.image_list.setMaximumWidth(280)
+        self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
+        # Add selection mode and behavior settings
+        self.image_list.setSelectionMode(QListWidget.SingleSelection)
+        self.image_list.setSelectionBehavior(QListWidget.SelectItems)
+        
+        # Add image list to main layout
+        self.main_layout.addWidget(self.image_list)
         
         # Add keyboard shortcuts for undo/redo
         self.setup_shortcuts()
