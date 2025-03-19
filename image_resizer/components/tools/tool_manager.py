@@ -63,4 +63,18 @@ class ToolManager:
 
     def handle_mouse_release(self, event):
         if self.current_tool:
-            self.current_tool.mouse_release(event) 
+            self.current_tool.mouse_release(event)
+            # After shape is created, deselect the tool
+            if hasattr(self.app, 'tools_toolbar'):
+                if isinstance(self.current_tool, CropTool) and hasattr(self.app.tools_toolbar, 'crop_btn'):
+                    self.app.tools_toolbar.crop_btn.setChecked(False)
+                elif isinstance(self.current_tool, TextTool) and hasattr(self.app.tools_toolbar, 'text_btn'):
+                    self.app.tools_toolbar.text_btn.setChecked(False)
+                elif isinstance(self.current_tool, ArrowTool) and hasattr(self.app.tools_toolbar, 'arrow_btn'):
+                    self.app.tools_toolbar.arrow_btn.setChecked(False)
+                elif isinstance(self.current_tool, LineTool) and hasattr(self.app.tools_toolbar, 'line_btn'):
+                    self.app.tools_toolbar.line_btn.setChecked(False)
+                elif isinstance(self.current_tool, CircleTool) and hasattr(self.app.tools_toolbar, 'circle_btn'):
+                    self.app.tools_toolbar.circle_btn.setChecked(False)
+                elif isinstance(self.current_tool, RectangleTool) and hasattr(self.app.tools_toolbar, 'rect_btn'):
+                    self.app.tools_toolbar.rect_btn.setChecked(False) 
