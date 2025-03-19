@@ -30,6 +30,9 @@ class ToolsToolbar(QWidget):
         # Create drawing tools
         self.setup_tools()
         
+        # Initially disable all tools
+        self.set_tools_enabled(False)
+        
     def setup_tools(self):
         """Setup drawing tool buttons"""
         # Common button size
