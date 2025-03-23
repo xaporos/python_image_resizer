@@ -7,6 +7,7 @@ from PyQt5.QtGui import QKeySequence, QColor
 from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, LABEL_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE, ZOOM_SLIDER_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.ui.tools_toolbar import ToolsToolbar
+from image_resizer.ui.color_palette import ColorPalette
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
 from image_resizer.components.tools.tool_manager import ToolManager
@@ -155,6 +156,17 @@ class ImageResizerApp(QMainWindow):
         self.main_layout.addWidget(left_container)
         
         # Create image list with modern styling
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+        
+        # Add color palette
+        self.color_palette = ColorPalette()
+        right_layout.setAlignment(Qt.AlignCenter)
+        right_layout.addWidget(self.color_palette)
+        
+        # Create image list
         self.image_list = QListWidget()
         self.image_list.setMinimumWidth(280)
         self.image_list.setMaximumWidth(280)
@@ -162,9 +174,10 @@ class ImageResizerApp(QMainWindow):
         # Add selection mode and behavior settings
         self.image_list.setSelectionMode(QListWidget.SingleSelection)
         self.image_list.setSelectionBehavior(QListWidget.SelectItems)
+        right_layout.addWidget(self.image_list)
         
-        # Add image list to main layout
-        self.main_layout.addWidget(self.image_list)
+        # Add right container to main layout
+        self.main_layout.addWidget(right_container)
         
         # Add keyboard shortcuts for undo/redo
         self.setup_shortcuts()
@@ -199,6 +212,9 @@ class ImageResizerApp(QMainWindow):
         
         # Connect zoom slider
         self.zoom_slider.valueChanged.connect(self.zoom_changed)
+        
+        # Connect color palette
+        self.color_palette.colorChanged.connect(self.tool_manager.set_current_color)
         
         # Add tooltips with shortcuts for undo/redo buttons
         self.toolbar.undo_btn.setToolTip("Undo (Ctrl+Z)")

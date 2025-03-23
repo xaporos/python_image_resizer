@@ -1,4 +1,6 @@
 from PyQt5.QtWidgets import QGraphicsPixmapItem
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from image_resizer.components.tools.crop_tool import CropTool
 from image_resizer.components.tools.pencil_tool import PencilTool
 from image_resizer.components.tools.arrow_tool import ArrowTool
@@ -11,6 +13,7 @@ class ToolManager:
     def __init__(self, app):
         self.app = app
         self.current_tool = None
+        self.current_color = QColor(Qt.black)  # Default color
         self.tools = {
             'crop': CropTool(app),
             'pencil': PencilTool(app),
@@ -36,6 +39,9 @@ class ToolManager:
         self.current_tool = self.tools.get(tool_name)
         if self.current_tool:
             self.current_tool.activate()
+            # Set the current color for the new tool
+            if hasattr(self.current_tool, 'current_color'):
+                self.current_tool.current_color = self.current_color
 
         # Update toolbar button states
         if hasattr(self.app.toolbar, 'arrow_btn'):
@@ -52,6 +58,13 @@ class ToolManager:
             self.app.toolbar.line_btn.setChecked(tool_name == 'line')
         if hasattr(self.app.toolbar, 'text_btn'):
             self.app.toolbar.text_btn.setChecked(tool_name == 'text')
+
+    def set_current_color(self, color):
+        """Set the current color for drawing tools"""
+        self.current_color = color
+        # Update current tool's color if it has one
+        if self.current_tool and hasattr(self.current_tool, 'current_color'):
+            self.current_tool.current_color = color
 
     def handle_mouse_press(self, event):
         if self.current_tool:
