@@ -1,10 +1,10 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                           QListWidget, QListWidgetItem, QSplitter, QMenuBar, 
+                           QListWidget, QListWidgetItem, QGraphicsDropShadowEffect, QMenuBar, 
                            QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, 
-                           QShortcut)
+                           QShortcut, QFrame)
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QKeySequence
-from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE
+from PyQt5.QtGui import QKeySequence, QColor
+from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, LABEL_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE, ZOOM_SLIDER_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.ui.tools_toolbar import ToolsToolbar
 from image_resizer.components.custom_graphics_view import CustomGraphicsView
@@ -18,6 +18,12 @@ class ImageResizerApp(QMainWindow):
         self.setWindowTitle("resizex")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(QSize(800, 600))
+
+        # Create and apply shadow
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(10)
+        shadow.setOffset(0, 0)
+        shadow.setColor(QColor(0, 0, 0, 40))  # semi-transparent black
         
         # Apply main style
         self.setStyleSheet(MAIN_STYLE)
@@ -59,7 +65,7 @@ class ImageResizerApp(QMainWindow):
         preview_layout = QVBoxLayout()
         
         # Create a container for the view to apply styling
-        view_container = QWidget()
+        view_container = QFrame()
         view_container.setStyleSheet(MAIN_WINDOW_STYLE)
         view_layout = QVBoxLayout(view_container)
         view_layout.setContentsMargins(5, 5, 5, 5)
@@ -79,20 +85,20 @@ class ImageResizerApp(QMainWindow):
         bottom_container = QWidget()
         bottom_container.setStyleSheet("""
             QWidget#bottomContainer {
-                border: 1px solid #50242424;
-                border-radius: 8px;
+                border-radius: 4px;
                 background-color: white;
             }
         """)
         bottom_container.setObjectName("bottomContainer")  # Set object name for specific styling
         bottom_container.setFixedHeight(50)
-        
         bottom_layout = QHBoxLayout(bottom_container)
         bottom_layout.setContentsMargins(20, 5, 20, 5)
         
         # Info labels
         self.size_label = QLabel("Size: --")
+        self.size_label.setStyleSheet(LABEL_STYLE)
         self.file_size_label = QLabel("File size: --")
+        self.file_size_label.setStyleSheet(LABEL_STYLE)
         
         # Add info labels to left side
         bottom_layout.addWidget(self.size_label)
@@ -103,19 +109,32 @@ class ImageResizerApp(QMainWindow):
         
         # Zoom controls on right side
         zoom_label = QLabel("Zoom:")
+        zoom_label.setStyleSheet(LABEL_STYLE)
         self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setStyleSheet(SLIDER_STYLE)
+        self.zoom_slider.setStyleSheet(ZOOM_SLIDER_STYLE)
         self.zoom_slider.setMinimum(10)
         self.zoom_slider.setMaximum(400)
         self.zoom_slider.setValue(100)
         self.zoom_slider.setFixedWidth(150)
         self.zoom_value_label = QLabel("100%")
+        self.zoom_value_label.setStyleSheet(LABEL_STYLE)
         self.zoom_value_label.setFixedWidth(50)
         
         # Add Fit button
         self.fit_button = QPushButton("Fit")
         self.fit_button.setFixedWidth(80)
-        self.fit_button.setStyleSheet(BUTTON_STYLE)
+        self.fit_button.setStyleSheet("""QPushButton {
+                color: black;
+                background-color: white;
+                padding: 4px 10px;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                border: 1px solid #242424;
+            }
+            }""")
         self.fit_button.clicked.connect(self.fit_to_view)
         
         bottom_layout.addWidget(zoom_label)

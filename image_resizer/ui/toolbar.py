@@ -1,7 +1,7 @@
 import os
 from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar, QFrame
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPoint
 from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -120,15 +120,32 @@ class Toolbar(QWidget):
         
         # Add stretch at the beginning to push everything to the right
         controls_group.addStretch()
+
+
+        class CustomComboBox(QComboBox):
+            def showPopup(self):
+                super().showPopup()
+
+                # This is the popup widget Qt uses internally
+                popup = self.view().window()
+                if popup:
+                    combo_pos = self.mapToGlobal(QPoint(0, 0))
+                    x = combo_pos.x()
+                    y = combo_pos.y() + self.height()  # Position just below the combo box
+                    popup.move(x, y)
+                    popup.setAttribute(Qt.WA_NoSystemBackground, True)
+                    popup.setAttribute(Qt.WA_TranslucentBackground, False)
+                    popup.setStyleSheet("background-color: white; border: none;")
         
         # Size combo with correct preset strings
-        self.size_combo = QComboBox()
+        self.size_combo = CustomComboBox()
         self.size_combo.addItems([
             "Original",
             "Small",
             "Medium",
             "Large"
         ])
+
         self.size_combo.setFixedWidth(120)  # Increased width to fit text
         self.size_combo.setFixedHeight(28)
         self.size_combo.setStyleSheet(COMBO_BOX_STYLE)
