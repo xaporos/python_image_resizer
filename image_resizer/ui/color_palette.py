@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QColorDialog, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QColorDialog, QLabel, QVBoxLayout, QHBoxLayout
 from PyQt5.QtGui import QColor
 from PyQt5.QtCore import pyqtSignal, Qt
 
@@ -18,53 +18,36 @@ class ColorPalette(QWidget):
         main_layout.setSpacing(2)  # Reduced spacing between elements
         main_layout.setContentsMargins(8, 8, 8, 8)
         
-        # Current color display and picker
-        color_header = QWidget()
-        color_header.setStyleSheet("background-color: #f5f5f5; border: none")
-        header_layout = QGridLayout(color_header)
-        header_layout.setSpacing(2)  # Reduced spacing in header
-        header_layout.setContentsMargins(2, 0, 6, 0)
-
+        # Create a horizontal layout for colors and current color display
+        colors_layout = QHBoxLayout()
+        colors_layout.setSpacing(10)
         
         # Current color display
         self.current_color_btn = QPushButton()
-        self.current_color_btn.setFixedSize(52, 28)
+        self.current_color_btn.setFixedSize(46, 46)
         self.current_color_btn.clicked.connect(self.show_color_picker)
         self.update_current_color_button()
-        header_layout.addWidget(self.current_color_btn, 0, 0)
+        colors_layout.addWidget(self.current_color_btn)
         
-        # Edit color button
-        edit_color_btn = QPushButton("Set Color")
-        edit_color_btn.setStyleSheet(BUTTON_STYLE)
-        edit_color_btn.clicked.connect(self.show_color_picker)
-        header_layout.addWidget(edit_color_btn, 0, 1)
-        
-        main_layout.addWidget(color_header)
-        main_layout.setSpacing(10)
-        # # Base colors section
-        # base_colors_label = QLabel("Colors")
-        # base_colors_label.setStyleSheet("font-size: 11px; color: #666666; margin-top: 2px;")
-        # main_layout.addWidget(base_colors_label)
-        
+        # Base colors section
         base_colors_layout = QGridLayout()
         base_colors_layout.setSpacing(2)  # Reduced spacing between color buttons
         
-        # Two rows of colors
+        # Reduced set of colors - 16 colors in 2x8 grid
         base_colors = [
-            # First row - Basic colors
-            "#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF",
-            "#FFFF00", "#FF00FF", "#00FFFF", "#808080", "#C0C0C0",
-            # Second row - Additional shades and colors
-            "#A52A2A", "#FFA500", "#32CD32", "#4169E1", "#800080",
-            "#008080", "#D2691E", "#DC143C", "#4B0082", "#006400"
+            "#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00",
+            "#FF00FF", "#00FFFF", "#808080", "#A52A2A", "#FFA500", "#32CD32",
+            "#4169E1", "#800080", "#008080", "#D2691E"
         ]
         
         button_size = 22
         for i, color in enumerate(base_colors):
             btn = self.create_color_button(color, button_size)
-            base_colors_layout.addWidget(btn, i // 10, i % 10)
+            base_colors_layout.addWidget(btn, i // 8, i % 8)
         
-        main_layout.addLayout(base_colors_layout)
+        colors_layout.addLayout(base_colors_layout)
+        
+        main_layout.addLayout(colors_layout)
         
         self.setStyleSheet("""
             QWidget {
