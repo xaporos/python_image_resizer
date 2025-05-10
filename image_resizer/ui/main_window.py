@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                            QListWidget, QListWidgetItem, QGraphicsDropShadowEffect, QMenuBar, 
                            QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, 
-                           QShortcut, QFrame)
+                           QShortcut, QFrame, QSizePolicy)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QKeySequence, QColor
 from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, LABEL_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE, ZOOM_SLIDER_STYLE
@@ -33,11 +33,12 @@ class ImageResizerApp(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QHBoxLayout(self.central_widget)
-        self.main_layout.setSpacing(10)
+        self.main_layout.setSpacing(4)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Create left side container for toolbar and content
         left_container = QWidget()
+        left_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(left_container)
         left_layout.setSpacing(10)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -45,6 +46,7 @@ class ImageResizerApp(QMainWindow):
         # Create scene and view first
         self.scene = QGraphicsScene()
         self.view = CustomGraphicsView(self.scene, self)
+        self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         # Initialize handlers before toolbar
         self.image_handler = ImageHandler(self)
@@ -67,6 +69,7 @@ class ImageResizerApp(QMainWindow):
         
         # Create a container for the view to apply styling
         view_container = QFrame()
+        view_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         view_container.setStyleSheet(MAIN_WINDOW_STYLE)
         view_layout = QVBoxLayout(view_container)
         view_layout.setContentsMargins(5, 5, 5, 5)
@@ -153,31 +156,42 @@ class ImageResizerApp(QMainWindow):
         left_layout.addLayout(content_layout)
         
         # Add left container to main layout
-        self.main_layout.addWidget(left_container)
-        
-        # Create image list with modern styling
+        self.main_layout.addWidget(left_container, 1)  # Stretch factor 1
+        # Create right container for color palette and image list
         right_container = QWidget()
+        right_container.setFixedWidth(280)  # Fixed width for right sidebar
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(10)
+        right_layout.setSpacing(10)  # Increased spacing between color palette and image list
+        
+        # Create color palette container
+        color_palette_container = QWidget()
+        color_palette_container.setStyleSheet("""
+            QWidget {
+                background-color: white;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+            }
+        """)
+        color_palette_layout = QVBoxLayout(color_palette_container)
+        color_palette_layout.setContentsMargins(2, 4, 8, 4)
         
         # Add color palette
         self.color_palette = ColorPalette()
-        right_layout.setAlignment(Qt.AlignCenter)
-        right_layout.addWidget(self.color_palette)
+        color_palette_layout.addWidget(self.color_palette)
+        right_layout.addWidget(color_palette_container)
         
         # Create image list
         self.image_list = QListWidget()
-        self.image_list.setMinimumWidth(280)
-        self.image_list.setMaximumWidth(280)
+        self.image_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
-        # Add selection mode and behavior settings
         self.image_list.setSelectionMode(QListWidget.SingleSelection)
         self.image_list.setSelectionBehavior(QListWidget.SelectItems)
         right_layout.addWidget(self.image_list)
         
-        # Add right container to main layout
-        self.main_layout.addWidget(right_container)
+        # Add containers to main layout
+        self.main_layout.addWidget(right_container, 0)  # No stretch
+        self.main_layout.setSpacing(8)  # Increased spacing between main content and right sidebar
         
         # Add keyboard shortcuts for undo/redo
         self.setup_shortcuts()

@@ -15,34 +15,39 @@ class ColorPalette(QWidget):
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(4)
-        main_layout.setContentsMargins(0, 6, 0, 6)
+        main_layout.setSpacing(2)  # Reduced spacing between elements
+        main_layout.setContentsMargins(8, 8, 8, 8)
         
         # Current color display and picker
         color_header = QWidget()
         color_header.setStyleSheet("background-color: #f5f5f5; border: none")
         header_layout = QGridLayout(color_header)
-        header_layout.setSpacing(4)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(2)  # Reduced spacing in header
+        header_layout.setContentsMargins(2, 0, 6, 0)
 
         
         # Current color display
         self.current_color_btn = QPushButton()
-        self.current_color_btn.setFixedSize(44, 28)
+        self.current_color_btn.setFixedSize(52, 28)
         self.current_color_btn.clicked.connect(self.show_color_picker)
         self.update_current_color_button()
         header_layout.addWidget(self.current_color_btn, 0, 0)
         
         # Edit color button
-        edit_color_btn = QPushButton("Edit Color")
+        edit_color_btn = QPushButton("Set Color")
         edit_color_btn.setStyleSheet(BUTTON_STYLE)
         edit_color_btn.clicked.connect(self.show_color_picker)
         header_layout.addWidget(edit_color_btn, 0, 1)
         
         main_layout.addWidget(color_header)
+        main_layout.setSpacing(10)
+        # # Base colors section
+        # base_colors_label = QLabel("Colors")
+        # base_colors_label.setStyleSheet("font-size: 11px; color: #666666; margin-top: 2px;")
+        # main_layout.addWidget(base_colors_label)
         
         base_colors_layout = QGridLayout()
-        base_colors_layout.setSpacing(7)
+        base_colors_layout.setSpacing(2)  # Reduced spacing between color buttons
         
         # Two rows of colors
         base_colors = [

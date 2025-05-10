@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsTextItem
+from PyQt5.QtWidgets import QGraphicsView, QGraphicsTextItem, QSizePolicy
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
 
@@ -17,6 +17,9 @@ class CustomGraphicsView(QGraphicsView):
         
         # Add text input focus handling
         self.setFocusPolicy(Qt.StrongFocus)
+
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumSize(400, 300)  # Minimum size to prevent too small view
 
     def mousePressEvent(self, event):
         # Check if text tool is active
