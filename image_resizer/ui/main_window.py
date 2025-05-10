@@ -70,7 +70,13 @@ class ImageResizerApp(QMainWindow):
         # Create a container for the view to apply styling
         view_container = QFrame()
         view_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        view_container.setStyleSheet(MAIN_WINDOW_STYLE)
+        view_container.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+            }
+        """)
         view_layout = QVBoxLayout(view_container)
         view_layout.setContentsMargins(5, 5, 5, 5)
         view_layout.addWidget(self.view)
@@ -87,13 +93,14 @@ class ImageResizerApp(QMainWindow):
         
         # Create bottom info bar container with border
         bottom_container = QWidget()
+        bottom_container.setObjectName("bottomContainer")  # Set object name for specific styling
         bottom_container.setStyleSheet("""
             QWidget#bottomContainer {
-                border-radius: 4px;
                 background-color: white;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
             }
         """)
-        bottom_container.setObjectName("bottomContainer")  # Set object name for specific styling
         bottom_container.setFixedHeight(50)
         bottom_layout = QHBoxLayout(bottom_container)
         bottom_layout.setContentsMargins(20, 5, 20, 5)
@@ -184,7 +191,25 @@ class ImageResizerApp(QMainWindow):
         # Create image list
         self.image_list = QListWidget()
         self.image_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
+        self.image_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                background: transparent;
+                border-radius: 4px;
+                margin: 2px 4px;
+            }
+            QListWidget::item:selected {
+                background-color: #f5f5f5;
+            }
+            QListWidget::item:hover {
+                background-color: #f5f5f5;
+            }
+        """)
         self.image_list.setSelectionMode(QListWidget.SingleSelection)
         self.image_list.setSelectionBehavior(QListWidget.SelectItems)
         right_layout.addWidget(self.image_list)
