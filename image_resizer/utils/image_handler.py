@@ -376,8 +376,15 @@ class ImageHandler:
                     scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
                     scene_pixmap_item.setTransformationMode(Qt.SmoothTransformation)
                     
-                    # Use the helper method to fit image
+                    # Set scene rect to match the new image size
+                    self.parent.scene.setSceneRect(0, 0, resized_image.size[0], resized_image.size[1])
+                    
+                    # Reset view transform and fit to view
+                    self.parent.view.resetTransform()
                     self.fit_image_to_view()
+                    
+                    # Store view scale for current image
+                    self.view_scale[file_path] = self.parent.view.transform().m11()
                     
                     self.update_info_label()
             
