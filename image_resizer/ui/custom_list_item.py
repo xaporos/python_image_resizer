@@ -1,7 +1,7 @@
 import os
 
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QPushButton, 
-                           QInputDialog, QLineEdit)
+                           QInputDialog, QLineEdit, QListWidget)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QIcon
 
@@ -107,16 +107,20 @@ class ImageListItemWidget(QWidget):
             QLineEdit.Normal, self.image_name
         )
         if ok and new_name and new_name != self.image_name:
-            # Find the parent QListWidgetItem
+            # Find the parent QListWidget
             parent_list = self.parent()
-            for i in range(parent_list.count()):
-                item = parent_list.item(i)
-                if parent_list.itemWidget(item) == self:
-                    self.renamed.emit(item, new_name)
-                    # Update the internal image name
-                    self.image_name = new_name
-                    self.name_label.setText(new_name)
-                    break
+            while parent_list and not isinstance(parent_list, QListWidget):
+                parent_list = parent_list.parent()
+                
+            if parent_list:
+                for i in range(parent_list.count()):
+                    item = parent_list.item(i)
+                    if parent_list.itemWidget(item) == self:
+                        self.renamed.emit(item, new_name)
+                        # Update the internal image name
+                        self.image_name = new_name
+                        self.name_label.setText(new_name)
+                        break
             
     def delete_clicked(self):
         self.deleted.emit(self.image_name)

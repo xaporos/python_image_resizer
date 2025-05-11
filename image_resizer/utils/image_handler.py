@@ -1111,8 +1111,15 @@ class ImageHandler:
                 f"Failed to save any images. {failed_count} images failed."
             )
 
-    def rename_image(self, old_name, new_name):
+    def rename_image(self, item, new_name):
         """Rename image file in the list"""
+        # Get the old name from the item's widget
+        widget = self.parent.image_list.itemWidget(item)
+        if not widget:
+            return
+            
+        old_name = widget.image_name
+        
         # Ensure the new name has a valid image extension
         old_ext = os.path.splitext(old_name)[1].lower()
         new_ext = os.path.splitext(new_name)[1].lower()
