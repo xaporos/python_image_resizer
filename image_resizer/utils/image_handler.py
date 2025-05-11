@@ -997,6 +997,10 @@ class ImageHandler:
                 is_resized = file_path in self.resized_images  # Has been explicitly resized
                 is_modified = has_shapes or is_resized
                 
+                # Skip unmodified images
+                if not is_modified:
+                    continue
+                
                 # Check if the original file exists
                 original_file_exists = os.path.exists(file_path)
                 
@@ -1008,16 +1012,9 @@ class ImageHandler:
                 if not original_ext or original_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
                     original_ext = '.jpg'
                 
-                save_path = os.path.join(output_dir, f"edited_{os.path.splitext(base_name)[0]}{original_ext}")
+                save_path = os.path.join(output_dir, f"{os.path.splitext(base_name)[0]}{original_ext}")
                 
                 try:
-                    if not is_modified and original_file_exists:
-                        # If not modified at all and original exists, just copy
-                        import shutil
-                        shutil.copy2(file_path, save_path)
-                        success_count += 1
-                        continue
-                    
                     # Get the pixmap to save
                     pixmap = None
                     if file_path in self.edited_images:

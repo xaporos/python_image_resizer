@@ -1,5 +1,6 @@
 from PIL import Image
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
+import os
 
 class ImageResizer:
     def __init__(self):
@@ -73,7 +74,7 @@ class ImageResizer:
         save_path, _ = QFileDialog.getSaveFileName(
             parent,
             "Save Image",
-            f"{prefix}_{original_path.split('/')[-1]}",
+            f"{os.path.basename(original_path)}",
             f"Image Files (*.{original_ext})"
         )
         return save_path
