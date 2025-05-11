@@ -44,20 +44,31 @@ class ToolManager:
                 self.current_tool.current_color = self.current_color
 
         # Update toolbar button states
-        if hasattr(self.app.toolbar, 'arrow_btn'):
-            self.app.toolbar.arrow_btn.setChecked(tool_name == 'arrow')
-        if hasattr(self.app.toolbar, 'circle_btn'):
-            self.app.toolbar.circle_btn.setChecked(tool_name == 'circle')
-        if hasattr(self.app.toolbar, 'pencil_btn'):
-            self.app.toolbar.pencil_btn.setChecked(tool_name == 'pencil')
-        if hasattr(self.app.toolbar, 'crop_btn'):
-            self.app.toolbar.crop_btn.setChecked(tool_name == 'crop')
-        if hasattr(self.app.toolbar, 'rect_btn'):
-            self.app.toolbar.rect_btn.setChecked(tool_name == 'rectangle')
-        if hasattr(self.app.toolbar, 'line_btn'):
-            self.app.toolbar.line_btn.setChecked(tool_name == 'line')
-        if hasattr(self.app.toolbar, 'text_btn'):
-            self.app.toolbar.text_btn.setChecked(tool_name == 'text')
+        if hasattr(self.app, 'tools_toolbar'):
+            # Uncheck all buttons first
+            self.app.tools_toolbar.crop_btn.setChecked(False)
+            self.app.tools_toolbar.pencil_btn.setChecked(False)
+            self.app.tools_toolbar.line_btn.setChecked(False)
+            self.app.tools_toolbar.arrow_btn.setChecked(False)
+            self.app.tools_toolbar.circle_btn.setChecked(False)
+            self.app.tools_toolbar.rect_btn.setChecked(False)
+            self.app.tools_toolbar.text_btn.setChecked(False)
+            
+            # Check the selected tool's button
+            if tool_name == 'crop':
+                self.app.tools_toolbar.crop_btn.setChecked(True)
+            elif tool_name == 'pencil':
+                self.app.tools_toolbar.pencil_btn.setChecked(True)
+            elif tool_name == 'line':
+                self.app.tools_toolbar.line_btn.setChecked(True)
+            elif tool_name == 'arrow':
+                self.app.tools_toolbar.arrow_btn.setChecked(True)
+            elif tool_name == 'circle':
+                self.app.tools_toolbar.circle_btn.setChecked(True)
+            elif tool_name == 'rectangle':
+                self.app.tools_toolbar.rect_btn.setChecked(True)
+            elif tool_name == 'text':
+                self.app.tools_toolbar.text_btn.setChecked(True)
 
     def set_current_color(self, color):
         """Set the current color for drawing tools"""
@@ -76,18 +87,4 @@ class ToolManager:
 
     def handle_mouse_release(self, event):
         if self.current_tool:
-            self.current_tool.mouse_release(event)
-            # After shape is created, deselect the tool
-            if hasattr(self.app, 'tools_toolbar'):
-                # Uncheck all tool buttons
-                for tool_name, button in {
-                    'crop': self.app.tools_toolbar.crop_btn,
-                    'pencil': self.app.tools_toolbar.pencil_btn,
-                    'line': self.app.tools_toolbar.line_btn,
-                    'arrow': self.app.tools_toolbar.arrow_btn,
-                    'circle': self.app.tools_toolbar.circle_btn,
-                    'rectangle': self.app.tools_toolbar.rect_btn,
-                    'text': self.app.tools_toolbar.text_btn
-                }.items():
-                    if hasattr(self.app.tools_toolbar, f'{tool_name}_btn'):
-                        button.setChecked(False) 
+            self.current_tool.mouse_release(event) 

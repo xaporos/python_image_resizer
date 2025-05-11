@@ -28,9 +28,11 @@ class BaseTool:
             self.app.tool_manager.set_tool(None)
             
             # Uncheck all tool buttons
-            if hasattr(self.app.toolbar, 'arrow_btn'):
-                self.app.toolbar.arrow_btn.setChecked(False)
-            if hasattr(self.app.toolbar, 'circle_btn'):
-                self.app.toolbar.circle_btn.setChecked(False)
-            if hasattr(self.app.toolbar, 'rect_btn'):
-                self.app.toolbar.rect_btn.setChecked(False)
+            if hasattr(self.app, 'tools_toolbar'):
+                self.app.tools_toolbar.crop_btn.setChecked(False)
+                self.app.tools_toolbar.pencil_btn.setChecked(False)
+                self.app.tools_toolbar.line_btn.setChecked(False)
+                self.app.tools_toolbar.arrow_btn.setChecked(False)
+                self.app.tools_toolbar.circle_btn.setChecked(False)
+                self.app.tools_toolbar.rect_btn.setChecked(False)
+                self.app.tools_toolbar.text_btn.setChecked(False)
