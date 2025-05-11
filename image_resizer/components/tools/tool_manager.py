@@ -79,15 +79,15 @@ class ToolManager:
             self.current_tool.mouse_release(event)
             # After shape is created, deselect the tool
             if hasattr(self.app, 'tools_toolbar'):
-                if isinstance(self.current_tool, CropTool) and hasattr(self.app.tools_toolbar, 'crop_btn'):
-                    self.app.tools_toolbar.crop_btn.setChecked(False)
-                elif isinstance(self.current_tool, TextTool) and hasattr(self.app.tools_toolbar, 'text_btn'):
-                    self.app.tools_toolbar.text_btn.setChecked(False)
-                elif isinstance(self.current_tool, ArrowTool) and hasattr(self.app.tools_toolbar, 'arrow_btn'):
-                    self.app.tools_toolbar.arrow_btn.setChecked(False)
-                elif isinstance(self.current_tool, LineTool) and hasattr(self.app.tools_toolbar, 'line_btn'):
-                    self.app.tools_toolbar.line_btn.setChecked(False)
-                elif isinstance(self.current_tool, CircleTool) and hasattr(self.app.tools_toolbar, 'circle_btn'):
-                    self.app.tools_toolbar.circle_btn.setChecked(False)
-                elif isinstance(self.current_tool, RectangleTool) and hasattr(self.app.tools_toolbar, 'rect_btn'):
-                    self.app.tools_toolbar.rect_btn.setChecked(False) 
+                # Uncheck all tool buttons
+                for tool_name, button in {
+                    'crop': self.app.tools_toolbar.crop_btn,
+                    'pencil': self.app.tools_toolbar.pencil_btn,
+                    'line': self.app.tools_toolbar.line_btn,
+                    'arrow': self.app.tools_toolbar.arrow_btn,
+                    'circle': self.app.tools_toolbar.circle_btn,
+                    'rectangle': self.app.tools_toolbar.rect_btn,
+                    'text': self.app.tools_toolbar.text_btn
+                }.items():
+                    if hasattr(self.app.tools_toolbar, f'{tool_name}_btn'):
+                        button.setChecked(False) 
