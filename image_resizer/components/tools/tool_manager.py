@@ -74,8 +74,40 @@ class ToolManager:
         """Set the current color for drawing tools"""
         self.current_color = color
         # Update current tool's color if it has one
-        if self.current_tool and hasattr(self.current_tool, 'current_color'):
-            self.current_tool.current_color = color
+        if self.current_tool:
+            if hasattr(self.current_tool, 'current_color'):
+                self.current_tool.current_color = color
+                
+            # Update active shape/text color if it exists
+            if hasattr(self.current_tool, 'text_item') and self.current_tool.text_item:
+                # For text tool
+                self.current_tool.text_item.setDefaultTextColor(color)
+            elif hasattr(self.current_tool, 'shape_handler'):
+                # For shape tools (rectangle, circle, line, arrow)
+                if self.current_tool.shape_handler.selected_shape:
+                    pen = self.current_tool.shape_handler.selected_shape.pen()
+                    pen.setColor(color)
+                    self.current_tool.shape_handler.selected_shape.setPen(pen)
+                elif hasattr(self.current_tool, 'rect_item') and self.current_tool.rect_item:
+                    # For rectangle being drawn
+                    pen = self.current_tool.rect_item.pen()
+                    pen.setColor(color)
+                    self.current_tool.rect_item.setPen(pen)
+                elif hasattr(self.current_tool, 'circle_item') and self.current_tool.circle_item:
+                    # For circle being drawn
+                    pen = self.current_tool.circle_item.pen()
+                    pen.setColor(color)
+                    self.current_tool.circle_item.setPen(pen)
+                elif hasattr(self.current_tool, 'line_item') and self.current_tool.line_item:
+                    # For line being drawn
+                    pen = self.current_tool.line_item.pen()
+                    pen.setColor(color)
+                    self.current_tool.line_item.setPen(pen)
+                elif hasattr(self.current_tool, 'arrow_item') and self.current_tool.arrow_item:
+                    # For arrow being drawn
+                    pen = self.current_tool.arrow_item.pen()
+                    pen.setColor(color)
+                    self.current_tool.arrow_item.setPen(pen)
 
     def handle_mouse_press(self, event):
         if self.current_tool:

@@ -46,11 +46,6 @@ class TextFormatToolbar(QWidget):
         self.italic_btn.setCheckable(True)
         layout.addWidget(self.italic_btn)
         
-        # Color button
-        self.color_btn = QToolButton()
-        self.color_btn.setText("Color")
-        layout.addWidget(self.color_btn)
-        
         # Cancel button
         self.cancel_btn = QToolButton()
         self.cancel_btn.setText("✕")
@@ -261,9 +256,12 @@ class TextTool(BaseTool):
         self.format_toolbar.size_spin.valueChanged.connect(self.update_size)
         self.format_toolbar.bold_btn.toggled.connect(self.update_bold)
         self.format_toolbar.italic_btn.toggled.connect(self.update_italic)
-        self.format_toolbar.color_btn.clicked.connect(self.update_color)
         self.format_toolbar.apply_btn.clicked.connect(self.apply_text)
         self.format_toolbar.cancel_btn.clicked.connect(self.cancel_text)
+        
+        # Connect to color palette changes
+        if hasattr(self.app, 'color_palette'):
+            self.app.color_palette.colorChanged.connect(self.update_text_color)
         
     def activate(self):
         """Called when the tool is selected"""
@@ -271,6 +269,16 @@ class TextTool(BaseTool):
         self.active = True
         self.prevent_deactivation = True  # Set flag when activating
         
+        # Ensure color palette connection is set up
+        if hasattr(self.app, 'color_palette'):
+            # Disconnect any existing connections to avoid duplicates
+            try:
+                self.app.color_palette.colorChanged.disconnect(self.update_text_color)
+            except:
+                pass
+            # Connect to color palette changes
+            self.app.color_palette.colorChanged.connect(self.update_text_color)
+
     def deactivate(self):
         """Called when the tool is deselected"""
         if self.prevent_deactivation:  # Only deactivate if allowed
@@ -322,6 +330,7 @@ class TextTool(BaseTool):
         # Create new text item
         self.text_item = CustomTextItem(self)
         self.text_item.setPos(pos)
+        self.text_item.setDefaultTextColor(self.app.tool_manager.current_color)  # Use the current color from tool manager
         self.app.scene.addItem(self.text_item)
         self.text_item.editing = True
         self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
@@ -506,4 +515,21 @@ class TextTool(BaseTool):
             if color.isValid():
                 self.text_item.setDefaultTextColor(color)
                 self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
-                self.text_item.setFocus() 
+                self.text_item.setFocus()
+
+    def update_text_color(self, color):
+        """Update text color when color palette changes"""
+        if self.text_item and not self.text_item.finalized:
+            # Update default text color
+            self.text_item.setDefaultTextColor(color)
+            
+            # Update color in the document
+            cursor = self.text_item.textCursor()
+            format = cursor.charFormat()
+            format.setForeground(color)
+            cursor.select(QTextCursor.Document)
+            cursor.mergeCharFormat(format)
+            
+            # Ensure text remains editable
+            self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+            self.text_item.setFocus() 
