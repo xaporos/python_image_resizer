@@ -58,6 +58,8 @@ class ImageHandler:
             if self.parent.image_list.count() > 0:
                 self.parent.toolbar.resize_btn.setEnabled(True)
                 self.parent.toolbar.resize_all_btn.setEnabled(True)
+                self.parent.toolbar.save_btn.setEnabled(True)
+                self.parent.toolbar.save_all_btn.setEnabled(True)
                 self.parent.image_list.setCurrentRow(0)
 
     def resize_image(self):
@@ -1331,6 +1333,12 @@ class ImageHandler:
                     self.parent.scene.clear()
                     self.parent.size_label.setText("Size: --")
                     self.parent.file_size_label.setText("File size: --")
+                    
+                    # Disable resize and save buttons when no images are left
+                    self.parent.toolbar.resize_btn.setEnabled(False)
+                    self.parent.toolbar.resize_all_btn.setEnabled(False)
+                    self.parent.toolbar.save_btn.setEnabled(False)
+                    self.parent.toolbar.save_all_btn.setEnabled(False)
                 break 
 
     def _update_tool_sizes(self, diagonal, base_diagonal=1500.0):

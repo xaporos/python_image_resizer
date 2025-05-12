@@ -273,6 +273,12 @@ class ImageResizerApp(QMainWindow):
         self.toolbar.resize_btn.clicked.connect(self.image_handler.resize_image)
         self.toolbar.resize_all_btn.clicked.connect(self.image_handler.resize_all_images)
         
+        # Disable save and resize buttons initially
+        self.toolbar.save_btn.setEnabled(False)
+        self.toolbar.save_all_btn.setEnabled(False)
+        self.toolbar.resize_btn.setEnabled(False)
+        self.toolbar.resize_all_btn.setEnabled(False)
+        
         # Connect image list selection
         self.image_list.itemClicked.connect(self.handle_item_selection)
         self.image_list.currentItemChanged.connect(self.update_ui_state)
