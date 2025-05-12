@@ -2,8 +2,8 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                            QListWidget, QListWidgetItem, QGraphicsDropShadowEffect, QMenuBar, 
                            QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, 
                            QShortcut, QFrame, QSizePolicy)
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QKeySequence, QColor
+from PyQt5.QtCore import Qt, QSize, QRectF
+from PyQt5.QtGui import QKeySequence, QColor, QPainter, QPainterPath
 from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, LABEL_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE, ZOOM_SLIDER_STYLE
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.ui.tools_toolbar import ToolsToolbar
@@ -12,6 +12,43 @@ from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
 from image_resizer.components.tools.tool_manager import ToolManager
 from image_resizer.ui.custom_list_item import ImageListItemWidget
+
+class SimpleOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Create label
+        self.label = QLabel("Resizing images...")
+        self.label.setStyleSheet("""
+            QLabel {
+                color: white;
+                font-size: 16px;
+                font-weight: 500;
+                background-color: rgba(0, 0, 0, 0.7);
+                padding: 20px 40px;
+                border-radius: 8px;
+            }
+        """)
+        
+        # Create layout
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.label)
+        
+        # Hide by default
+        self.hide()
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Create semi-transparent background
+        path = QPainterPath()
+        rect = self.rect()
+        path.addRect(QRectF(rect))  # Convert QRect to QRectF
+        painter.fillPath(path, QColor(0, 0, 0, 128))
 
 class ImageResizerApp(QMainWindow):
     def __init__(self):
@@ -224,6 +261,10 @@ class ImageResizerApp(QMainWindow):
         # Connect signals after all UI elements are created
         self.connect_signals()
         
+        # Create overlay
+        self.overlay = SimpleOverlay(self)
+        self.overlay.hide()
+        
     def connect_signals(self):
         # Connect toolbar buttons
         self.toolbar.open_btn.clicked.connect(self.image_handler.select_files)
@@ -390,3 +431,7 @@ class ImageResizerApp(QMainWindow):
         if self.scene.items():
             self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
             self.view.centerOn(self.scene.sceneRect().center())
+            
+        # Update overlay size
+        if hasattr(self, 'overlay'):
+            self.overlay.resize(self.size())

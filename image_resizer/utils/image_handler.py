@@ -321,6 +321,11 @@ class ImageHandler:
         if not self.images:
             QMessageBox.warning(self.parent, "Warning", "No images loaded!")
             return
+            
+        # Show overlay
+        self.parent.overlay.show()
+        self.parent.overlay.resize(self.parent.size())
+        QApplication.processEvents()
         
         try:
             # Get current settings
@@ -399,6 +404,10 @@ class ImageHandler:
             
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
+        finally:
+            # Hide overlay
+            self.parent.overlay.hide()
+            QApplication.processEvents()
 
     def fit_image_to_view(self):
         """Helper method to properly fit and center image in view"""
