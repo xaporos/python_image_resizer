@@ -102,10 +102,51 @@ class ImageListItemWidget(QWidget):
         self.rename_btn.setVisible(selected)
         
     def rename_clicked(self):
-        new_name, ok = QInputDialog.getText(
-            self, 'Rename Image', 'Enter new name:',
-            QLineEdit.Normal, self.image_name
-        )
+        # Create custom input dialog
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("Rename Image")
+        dialog.setLabelText("Enter new name:")
+        dialog.setTextValue(self.image_name)
+        
+        # Style the dialog to match app theme
+        dialog.setStyleSheet("""
+            QInputDialog {
+                background-color: white;
+            }
+            QLabel {
+                color: #333333;
+                font-size: 14px;
+                font-weight: 500;
+                padding: 10px;
+            }
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                background-color: white;
+                color: #333333;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #242424;
+            }
+            QPushButton {
+                color: black;
+                background-color: white;
+                padding: 8px 16px;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                font-weight: 500;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                border: 1px solid #242424;
+            }
+        """)
+        
+        ok = dialog.exec_()
+        new_name = dialog.textValue()
+        
         if ok and new_name and new_name != self.image_name:
             # Find the parent QListWidget
             parent_list = self.parent()

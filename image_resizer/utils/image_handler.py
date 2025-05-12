@@ -396,11 +396,39 @@ class ImageHandler:
             # Mark all as modified
             self.modified = True
             
-            QMessageBox.information(
-                self.parent,
-                "Success",
-                f"Successfully resized {self.parent.image_list.count()} images!"
-            )
+            # Create custom success dialog
+            success_dialog = QMessageBox(self.parent)
+            success_dialog.setWindowTitle("Success")
+            success_dialog.setText(f"Successfully resized {self.parent.image_list.count()} images!")
+            success_dialog.setIcon(QMessageBox.Information)
+            
+            # Style the dialog to match app theme
+            success_dialog.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """)
+            
+            # Show the dialog
+            success_dialog.exec_()
             
         except Exception as e:
             QMessageBox.critical(self.parent, "Error", f"An error occurred: {str(e)}")
@@ -1107,22 +1135,77 @@ class ImageHandler:
             if current_item:
                 self.parent.image_list.setCurrentItem(current_item)
         
-        # Show final results
+        # Show final results with styled dialog
         if success_count > 0:
             message = f"Successfully saved {success_count} images to {output_dir}!"
             if failed_count > 0:
                 message += f"\nFailed to save {failed_count} images."
-            QMessageBox.information(
-                self.parent,
-                "Success",
-                message
-            )
+                
+            # Create custom success dialog
+            success_dialog = QMessageBox(self.parent)
+            success_dialog.setWindowTitle("Success")
+            success_dialog.setText(message)
+            success_dialog.setIcon(QMessageBox.Information)
+            
+            # Style the dialog to match app theme
+            success_dialog.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """)
+            
+            success_dialog.exec_()
         elif failed_count > 0:
-            QMessageBox.warning(
-                self.parent,
-                "Warning",
-                f"Failed to save any images. {failed_count} images failed."
-            )
+            # Create custom error dialog
+            error_dialog = QMessageBox(self.parent)
+            error_dialog.setWindowTitle("Warning")
+            error_dialog.setText(f"Failed to save any images. {failed_count} images failed.")
+            error_dialog.setIcon(QMessageBox.Warning)
+            
+            # Style the dialog to match app theme
+            error_dialog.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """)
+            
+            error_dialog.exec_()
 
     def rename_image(self, item, new_name):
         """Rename image file in the list"""
