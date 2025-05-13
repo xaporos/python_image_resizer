@@ -60,6 +60,35 @@ class Toolbar(QWidget):
             for tool in self.parent.tool_manager.tools.values():
                 if hasattr(tool, 'line_width'):
                     tool.line_width = value
+            
+            # Update current tool's active shape if it exists
+            current_tool = self.parent.tool_manager.current_tool
+            if current_tool:
+                if hasattr(current_tool, 'shape_handler') and current_tool.shape_handler.selected_shape:
+                    # Update selected shape's pen width
+                    pen = current_tool.shape_handler.selected_shape.pen()
+                    pen.setWidth(value)
+                    current_tool.shape_handler.selected_shape.setPen(pen)
+                elif hasattr(current_tool, 'rect_item') and current_tool.rect_item:
+                    # Update rectangle being drawn
+                    pen = current_tool.rect_item.pen()
+                    pen.setWidth(value)
+                    current_tool.rect_item.setPen(pen)
+                elif hasattr(current_tool, 'circle_item') and current_tool.circle_item:
+                    # Update circle being drawn
+                    pen = current_tool.circle_item.pen()
+                    pen.setWidth(value)
+                    current_tool.circle_item.setPen(pen)
+                elif hasattr(current_tool, 'line_item') and current_tool.line_item:
+                    # Update line being drawn
+                    pen = current_tool.line_item.pen()
+                    pen.setWidth(value)
+                    current_tool.line_item.setPen(pen)
+                elif hasattr(current_tool, 'arrow_item') and current_tool.arrow_item:
+                    # Update arrow being drawn
+                    pen = current_tool.arrow_item.pen()
+                    pen.setWidth(value)
+                    current_tool.arrow_item.setPen(pen)
         
     def setup_tools(self):
         # Main container for all tools
@@ -122,10 +151,10 @@ class Toolbar(QWidget):
 
         # Add thickness slider
         thickness_container = QWidget()
-        thickness_container.setFixedWidth(180)
+        thickness_container.setFixedWidth(240)
         thickness_container.setFixedHeight(28)
         thickness_layout = QHBoxLayout(thickness_container)
-        thickness_layout.setContentsMargins(0, 0, 0, 0)
+        thickness_layout.setContentsMargins(8, 0, 0, 0)
         
         thickness_label = QLabel("Thickness:")
         thickness_label.setStyleSheet(LABEL_STYLE)

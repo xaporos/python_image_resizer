@@ -55,7 +55,7 @@ class ImageResizerApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("resizex")
         self.setGeometry(100, 100, 1200, 800)
-        self.setMinimumSize(QSize(800, 600))
+        self.setMinimumSize(QSize(1400, 600))
 
         # Create and apply shadow
         shadow = QGraphicsDropShadowEffect()
