@@ -42,6 +42,13 @@ class ToolManager:
             # Set the current color for the new tool
             if hasattr(self.current_tool, 'current_color'):
                 self.current_tool.current_color = self.current_color
+            # Set the current line width for the new tool
+            if hasattr(self.current_tool, 'line_width'):
+                # Get current thickness from toolbar if available
+                if hasattr(self.app, 'toolbar') and hasattr(self.app.toolbar, 'thickness_slider'):
+                    self.current_tool.line_width = self.app.toolbar.thickness_slider.value()
+                else:
+                    self.current_tool.line_width = 3  # Default thickness
 
         # Update toolbar button states
         if hasattr(self.app, 'tools_toolbar'):

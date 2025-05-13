@@ -2,7 +2,7 @@ import os
 from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar, QFrame
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QPoint
-from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE
+from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE, LABEL_STYLE
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SAVE_ICON_PATH = os.path.join(BASE_DIR, "assets", "save.png")
@@ -46,10 +46,20 @@ class Toolbar(QWidget):
     def connect_signals(self):
         """Connect all toolbar signals"""
         self.quality_slider.valueChanged.connect(self.quality_changed)
+        self.thickness_slider.valueChanged.connect(self.thickness_changed)
         
     def quality_changed(self, value):
         """Update quality label when slider value changes"""
         self.quality_label.setText(f"{value}%")
+        
+    def thickness_changed(self, value):
+        """Update thickness label and tool line width when slider value changes"""
+        self.thickness_value_label.setText(f"{value}px")
+        if hasattr(self.parent, 'tool_manager'):
+            # Update line width for all tools
+            for tool in self.parent.tool_manager.tools.values():
+                if hasattr(tool, 'line_width'):
+                    tool.line_width = value
         
     def setup_tools(self):
         # Main container for all tools
@@ -109,6 +119,37 @@ class Toolbar(QWidget):
         self.redo_btn.setStyleSheet(TOOL_BUTTON_STYLE)
         self.redo_btn.setFixedSize(button_size, button_size)
         main_layout.addWidget(self.redo_btn)
+
+        # Add thickness slider
+        thickness_container = QWidget()
+        thickness_container.setFixedWidth(180)
+        thickness_container.setFixedHeight(28)
+        thickness_layout = QHBoxLayout(thickness_container)
+        thickness_layout.setContentsMargins(0, 0, 0, 0)
+        
+        thickness_label = QLabel("Thickness:")
+        thickness_label.setStyleSheet(LABEL_STYLE)
+        thickness_label.setFixedHeight(16)
+        thickness_label.setAlignment(Qt.AlignVCenter)
+        
+        self.thickness_slider = QSlider(Qt.Horizontal)
+        self.thickness_slider.setMinimum(1)
+        self.thickness_slider.setMaximum(20)
+        self.thickness_slider.setValue(3)  # Default thickness
+        self.thickness_slider.setFixedWidth(120)
+        self.thickness_slider.setFixedHeight(16)
+        self.thickness_slider.setStyleSheet(SLIDER_STYLE)
+        
+        self.thickness_value_label = QLabel("3px")
+        self.thickness_value_label.setFixedHeight(16)
+        self.thickness_value_label.setAlignment(Qt.AlignVCenter)
+        self.thickness_value_label.setStyleSheet(LABEL_STYLE)
+        
+        thickness_layout.addWidget(thickness_label, 0, Qt.AlignVCenter)
+        thickness_layout.addWidget(self.thickness_slider, 0, Qt.AlignVCenter)
+        thickness_layout.addWidget(self.thickness_value_label, 0, Qt.AlignVCenter)
+        
+        main_layout.addWidget(thickness_container)
         
         main_layout.addStretch(1)
         
