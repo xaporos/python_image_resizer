@@ -198,27 +198,10 @@ class ImageHandler:
                 else:
                     save_path = save_path + orig_ext
             
-            if not is_modified and original_file_exists:
-                # If not modified at all and original file exists, just copy the original file
-                import shutil
-                shutil.copy2(file_path, save_path)
-                
-                # Show success message with statistics
-                original_size = os.path.getsize(file_path)
-                new_size = os.path.getsize(save_path)
-                orig_mb = original_size / (1024 * 1024)
-                
-                QMessageBox.information(
-                    self.parent, "Success",
-                    f"Original image saved successfully!\n\n"
-                    f"Size: {orig_mb:.2f} MB"
-                )
-                return
-            
             # Get the pixmap to save
             pixmap = None
             if file_path in self.edited_images:
-                # For images with shapes, use the edited image directly
+                # For images with shapes or edits, use the edited image directly
                 pixmap = self.edited_images[file_path]
             elif original_file_exists:
                 # For unmodified images, use the original
@@ -242,33 +225,19 @@ class ImageHandler:
                 QMessageBox.critical(self.parent, "Error", "Could not get image data to save.")
                 return
             
-            # Convert pixmap to RGB if saving as JPEG
+            # Save the image with appropriate settings
             save_ext = os.path.splitext(save_path)[1].lower()
             if save_ext in ['.jpg', '.jpeg']:
-                # Convert to RGB by saving to a temporary buffer and reloading
-                temp_buffer = QByteArray()
-                buffer = QBuffer(temp_buffer)
-                buffer.open(QBuffer.WriteOnly)
-                pixmap.save(buffer, 'PNG')  # Save as PNG to preserve quality
-                buffer.close()
-                
-                # Load as PIL image, convert to RGB, and back to QPixmap
-                pil_image = Image.open(BytesIO(temp_buffer.data()))
-                if pil_image.mode == 'RGBA':
-                    pil_image = pil_image.convert('RGB')
-                
-                # Convert back to QPixmap
-                img_byte_arr = BytesIO()
-                pil_image.save(img_byte_arr, format='PNG')
-                img_byte_arr.seek(0)
-                qimage = QImage.fromData(img_byte_arr.getvalue())
-                pixmap = QPixmap.fromImage(qimage)
-                
-                # Save with quality setting
-                quality = self.parent.toolbar.quality_slider.value()
-                pixmap.save(save_path, 'JPEG', quality)
+                # For JPEG, we need to handle quality settings
+                if is_modified:
+                    # Only apply quality settings if the image has been modified
+                    quality = self.parent.toolbar.quality_slider.value()
+                    pixmap.save(save_path, 'JPEG', quality)
+                else:
+                    # For unmodified images, save with maximum quality
+                    pixmap.save(save_path, 'JPEG', 100)
             else:
-                # For other formats, use their native format
+                # For other formats, use their native format with maximum quality
                 format_map = {
                     '.png': ('PNG', -1),  # -1 means maximum compression for PNG
                     '.gif': ('GIF', None),
@@ -1266,8 +1235,27 @@ class ImageHandler:
             for path, image in temp_images.items():
                 if path == old_path:
                     self.images[new_path] = image
+                    
+                    # For renamed files, we need to ensure we have a valid pixmap
                     if old_path in temp_edited_images:
+                        # If we have an edited version, use it
                         self.edited_images[new_path] = temp_edited_images[old_path]
+                    else:
+                        # If no edited version exists, create a pixmap from the original image
+                        # without any quality changes or resizing
+                        img_array = np.array(image)
+                        if len(img_array.shape) == 3:  # Color image
+                            array_height, array_width, channels = img_array.shape
+                            bytes_per_line = channels * array_width
+                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_RGB888)
+                        else:  # Grayscale image
+                            array_height, array_width = img_array.shape
+                            bytes_per_line = array_width
+                            qimage = QImage(img_array.data, array_width, array_height, bytes_per_line, QImage.Format_Grayscale8)
+                        pixmap = QPixmap.fromImage(qimage)
+                        self.edited_images[new_path] = pixmap
+                    
+                    # Copy all other properties
                     if old_path in temp_current_dimensions:
                         self.current_dimensions[new_path] = temp_current_dimensions[old_path]
                     if old_path in temp_file_sizes:
