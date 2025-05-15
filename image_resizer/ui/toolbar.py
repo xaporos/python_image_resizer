@@ -61,6 +61,9 @@ class Toolbar(QWidget):
             for tool in self.parent.tool_manager.tools.values():
                 if hasattr(tool, 'line_width'):
                     tool.line_width = value
+                    # Update eraser cursor size if this is the active eraser tool
+                    if hasattr(tool, 'update_cursor_size') and self.parent.tool_manager.current_tool == tool:
+                        tool.update_cursor_size()
             
             # Update current tool's active shape if it exists
             current_tool = self.parent.tool_manager.current_tool

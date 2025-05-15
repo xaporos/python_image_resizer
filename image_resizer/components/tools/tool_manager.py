@@ -49,6 +49,9 @@ class ToolManager:
                 # Get current thickness from toolbar if available
                 if hasattr(self.app, 'toolbar') and hasattr(self.app.toolbar, 'thickness_slider'):
                     self.current_tool.line_width = self.app.toolbar.thickness_slider.value()
+                    # Update cursor size for eraser tool if applicable
+                    if tool_name == 'eraser' and hasattr(self.current_tool, 'update_cursor_size'):
+                        self.current_tool.update_cursor_size()
                 else:
                     self.current_tool.line_width = 3  # Default thickness
 
@@ -85,6 +88,11 @@ class ToolManager:
     def set_current_color(self, color):
         """Set the current color for drawing tools"""
         self.current_color = color
+        
+        # Update eraser tool color even if it's not active
+        if 'eraser' in self.tools:
+            self.tools['eraser'].set_current_color(color)
+        
         # Update current tool's color if it has one
         if self.current_tool:
             if hasattr(self.current_tool, 'current_color'):

@@ -1,5 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame, QHBoxLayout
 from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt
 from image_resizer.ui.styles import TOOL_BUTTON_STYLE
 from image_resizer.ui.toolbar import (CROP_ICON_PATH, PENCIL_ICON_PATH, LINE_ICON_PATH,
                                     ARROW_ICON_PATH, CIRCLE_ICON_PATH, RECT_ICON_PATH,
@@ -54,8 +55,36 @@ class ToolsToolbar(QWidget):
         self.separator.setStyleSheet("background-color: #DBDCDA; margin: 5px 2px;")
         self.separator.setFixedHeight(1)
         
+        # Create eraser container with toggle button
+        eraser_container = QWidget()
+        eraser_layout = QVBoxLayout(eraser_container)
+        eraser_layout.setContentsMargins(0, 0, 0, 0)
+        eraser_layout.setSpacing(2)
+        
         # Create eraser button
         self.eraser_btn = self.create_tool_button(ERASER_ICON_PATH, "Eraser", button_size)
+        eraser_layout.addWidget(self.eraser_btn)
+        
+        # Create eraser mode toggle button
+        self.eraser_mode_btn = self.create_switch_button("Transparent", "Color Eraser", button_size-10)
+        self.eraser_mode_btn.setToolTip("Toggle between transparent eraser and color eraser modes")
+        self.eraser_mode_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 8px;
+                padding: 2px;
+                background-color: #f8f8f8;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+            }
+            QPushButton:checked {
+                background-color: #e0e0e0;
+                border: 1px solid #c0c0c0;
+            }
+            QPushButton:hover {
+                background-color: #e8e8e8;
+            }
+        """)
+        eraser_layout.addWidget(self.eraser_mode_btn)
         
         # Add buttons to layout
         self.layout.addWidget(self.crop_btn)
@@ -66,7 +95,7 @@ class ToolsToolbar(QWidget):
         self.layout.addWidget(self.rect_btn)
         self.layout.addWidget(self.text_btn)
         self.layout.addWidget(self.separator)
-        self.layout.addWidget(self.eraser_btn)
+        self.layout.addWidget(eraser_container)
         
         # Add stretch to push everything to the top
         self.layout.addStretch()
@@ -83,6 +112,24 @@ class ToolsToolbar(QWidget):
             self.eraser_btn
         ]
         
+        # Connect eraser mode toggle
+        self.eraser_mode_btn.clicked.connect(self.toggle_eraser_mode)
+    
+    def toggle_eraser_mode(self):
+        """Toggle between transparent eraser and color eraser modes"""
+        is_color_mode = self.eraser_mode_btn.isChecked()
+        
+        # Update the button text
+        if is_color_mode:
+            self.eraser_mode_btn.setText("Color")
+        else:
+            self.eraser_mode_btn.setText("Transparent")
+        
+        # Update the eraser tool mode
+        if hasattr(self.parent, 'tool_manager') and 'eraser' in self.parent.tool_manager.tools:
+            eraser_tool = self.parent.tool_manager.tools['eraser']
+            eraser_tool.set_color_mode(is_color_mode)
+        
     def create_tool_button(self, icon_path, tooltip, size):
         """Create a tool button with consistent styling"""
         from PyQt5.QtWidgets import QPushButton
@@ -93,10 +140,22 @@ class ToolsToolbar(QWidget):
         btn.setStyleSheet(TOOL_BUTTON_STYLE)
         btn.setFixedSize(size, size)
         return btn
+    
+    def create_switch_button(self, off_text, on_text, height):
+        """Create a text toggle button"""
+        from PyQt5.QtWidgets import QPushButton
+        btn = QPushButton(off_text)
+        btn.setCheckable(True)
+        btn.setFixedHeight(height)
+        return btn
         
     def set_tools_enabled(self, enabled):
         """Enable or disable all drawing tools"""
         for btn in self.drawing_tools:
             btn.setEnabled(enabled)
             if not enabled:
-                btn.setChecked(False) 
+                btn.setChecked(False)
+        
+        # Also disable or enable the eraser mode toggle button
+        if hasattr(self, 'eraser_mode_btn'):
+            self.eraser_mode_btn.setEnabled(enabled) 
