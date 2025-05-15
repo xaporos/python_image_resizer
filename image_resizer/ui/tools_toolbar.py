@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame
 from PyQt5.QtGui import QIcon
 from image_resizer.ui.styles import TOOL_BUTTON_STYLE
 from image_resizer.ui.toolbar import (CROP_ICON_PATH, PENCIL_ICON_PATH, LINE_ICON_PATH,
                                     ARROW_ICON_PATH, CIRCLE_ICON_PATH, RECT_ICON_PATH,
-                                    TEXT_ICON_PATH)
+                                    TEXT_ICON_PATH, ERASER_ICON_PATH)
 
 class ToolsToolbar(QWidget):
     def __init__(self, parent=None):
@@ -47,6 +47,16 @@ class ToolsToolbar(QWidget):
         self.rect_btn = self.create_tool_button(RECT_ICON_PATH, "Rectangle", button_size)
         self.text_btn = self.create_tool_button(TEXT_ICON_PATH, "Text", button_size)
         
+        # Create separator line
+        self.separator = QFrame()
+        self.separator.setFrameShape(QFrame.HLine)
+        self.separator.setFrameShadow(QFrame.Sunken)
+        self.separator.setStyleSheet("background-color: #DBDCDA; margin: 5px 2px;")
+        self.separator.setFixedHeight(1)
+        
+        # Create eraser button
+        self.eraser_btn = self.create_tool_button(ERASER_ICON_PATH, "Eraser", button_size)
+        
         # Add buttons to layout
         self.layout.addWidget(self.crop_btn)
         self.layout.addWidget(self.pencil_btn)
@@ -55,6 +65,8 @@ class ToolsToolbar(QWidget):
         self.layout.addWidget(self.circle_btn)
         self.layout.addWidget(self.rect_btn)
         self.layout.addWidget(self.text_btn)
+        self.layout.addWidget(self.separator)
+        self.layout.addWidget(self.eraser_btn)
         
         # Add stretch to push everything to the top
         self.layout.addStretch()
@@ -67,7 +79,8 @@ class ToolsToolbar(QWidget):
             self.arrow_btn,
             self.circle_btn,
             self.rect_btn,
-            self.text_btn
+            self.text_btn,
+            self.eraser_btn
         ]
         
     def create_tool_button(self, icon_path, tooltip, size):

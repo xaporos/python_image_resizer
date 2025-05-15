@@ -15,6 +15,7 @@ ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
 CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
 RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
 TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
+ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "eraser.png")
 UNDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "undo.png")
 REDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "redo.png")
 

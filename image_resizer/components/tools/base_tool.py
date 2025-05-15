@@ -36,3 +36,4 @@ class BaseTool:
                 self.app.tools_toolbar.circle_btn.setChecked(False)
                 self.app.tools_toolbar.rect_btn.setChecked(False)
                 self.app.tools_toolbar.text_btn.setChecked(False)
+                self.app.tools_toolbar.eraser_btn.setChecked(False)

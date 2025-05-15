@@ -291,6 +291,7 @@ class ImageResizerApp(QMainWindow):
         self.tools_toolbar.circle_btn.clicked.connect(lambda: self.set_tool('circle'))
         self.tools_toolbar.rect_btn.clicked.connect(lambda: self.set_tool('rectangle'))
         self.tools_toolbar.text_btn.clicked.connect(lambda: self.set_tool('text'))
+        self.tools_toolbar.eraser_btn.clicked.connect(lambda: self.set_tool('eraser'))
         
         # Connect undo/redo buttons
         self.toolbar.undo_btn.clicked.connect(self.image_handler.undo)
@@ -323,6 +324,7 @@ class ImageResizerApp(QMainWindow):
             'circle': self.tools_toolbar.circle_btn,
             'rectangle': self.tools_toolbar.rect_btn,
             'text': self.tools_toolbar.text_btn,
+            'eraser': self.tools_toolbar.eraser_btn,
         }
         
         # Uncheck all buttons
