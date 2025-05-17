@@ -12,6 +12,7 @@ ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
 CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
 RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
 TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
+HIGHLIGHT_ICON_PATH = os.path.join(BASE_DIR, "assets", "highlight.png")
 ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "erase.png")
 
 class ToolsToolbar(QWidget):
@@ -55,6 +56,7 @@ class ToolsToolbar(QWidget):
         self.circle_btn = self.create_tool_button(CIRCLE_ICON_PATH, "Circle", button_size)
         self.rect_btn = self.create_tool_button(RECT_ICON_PATH, "Rectangle", button_size)
         self.text_btn = self.create_tool_button(TEXT_ICON_PATH, "Text", button_size)
+        self.highlight_btn = self.create_tool_button(HIGHLIGHT_ICON_PATH, "Highlighter", button_size)
         self.eraser_btn = self.create_tool_button(ERASER_ICON_PATH, "Eraser", button_size)
         
         # Create separator line
@@ -88,6 +90,7 @@ class ToolsToolbar(QWidget):
         self.layout.addWidget(self.circle_btn)
         self.layout.addWidget(self.rect_btn)
         self.layout.addWidget(self.text_btn)
+        self.layout.addWidget(self.highlight_btn)
         self.layout.addWidget(self.separator)
         self.layout.addWidget(self.eraser_btn)
         self.layout.addWidget(self.eraser_mode_btn)
@@ -104,6 +107,7 @@ class ToolsToolbar(QWidget):
             self.circle_btn,
             self.rect_btn,
             self.text_btn,
+            self.highlight_btn,
             self.eraser_btn
         ]
         

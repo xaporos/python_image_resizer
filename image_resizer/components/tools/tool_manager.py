@@ -9,6 +9,7 @@ from image_resizer.components.tools.rectangle_tool import RectangleTool
 from image_resizer.components.tools.text_tool import TextTool
 from image_resizer.components.tools.line_tool import LineTool
 from image_resizer.components.tools.eraser_tool import EraserTool
+from image_resizer.components.tools.highlight_tool import HighlightTool
 
 class ToolManager:
     def __init__(self, app):
@@ -23,6 +24,7 @@ class ToolManager:
             'circle': CircleTool(app),
             'rectangle': RectangleTool(app),
             'text': TextTool(app),
+            'highlight': HighlightTool(app),
             'eraser': EraserTool(app),
             # We'll add other tools here later
         }
@@ -65,6 +67,7 @@ class ToolManager:
             self.app.tools_toolbar.circle_btn.setChecked(False)
             self.app.tools_toolbar.rect_btn.setChecked(False)
             self.app.tools_toolbar.text_btn.setChecked(False)
+            self.app.tools_toolbar.highlight_btn.setChecked(False)
             self.app.tools_toolbar.eraser_btn.setChecked(False)
             
             # Check the selected tool's button
@@ -82,6 +85,8 @@ class ToolManager:
                 self.app.tools_toolbar.rect_btn.setChecked(True)
             elif tool_name == 'text':
                 self.app.tools_toolbar.text_btn.setChecked(True)
+            elif tool_name == 'highlight':
+                self.app.tools_toolbar.highlight_btn.setChecked(True)
             elif tool_name == 'eraser':
                 self.app.tools_toolbar.eraser_btn.setChecked(True)
 
