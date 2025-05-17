@@ -1,10 +1,18 @@
+import os
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame, QHBoxLayout
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from image_resizer.ui.styles import TOOL_BUTTON_STYLE
-from image_resizer.ui.toolbar import (CROP_ICON_PATH, PENCIL_ICON_PATH, LINE_ICON_PATH,
-                                    ARROW_ICON_PATH, CIRCLE_ICON_PATH, RECT_ICON_PATH,
-                                    TEXT_ICON_PATH, ERASER_ICON_PATH)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CROP_ICON_PATH = os.path.join(BASE_DIR, "assets", "crop.png")
+PENCIL_ICON_PATH = os.path.join(BASE_DIR, "assets", "pencil.png")
+LINE_ICON_PATH = os.path.join(BASE_DIR, "assets", "line.png")
+ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
+CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
+RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
+TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
+ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "erase.png")
 
 class ToolsToolbar(QWidget):
     def __init__(self, parent=None):
@@ -47,6 +55,7 @@ class ToolsToolbar(QWidget):
         self.circle_btn = self.create_tool_button(CIRCLE_ICON_PATH, "Circle", button_size)
         self.rect_btn = self.create_tool_button(RECT_ICON_PATH, "Rectangle", button_size)
         self.text_btn = self.create_tool_button(TEXT_ICON_PATH, "Text", button_size)
+        self.eraser_btn = self.create_tool_button(ERASER_ICON_PATH, "Eraser", button_size)
         
         # Create separator line
         self.separator = QFrame()
@@ -55,36 +64,21 @@ class ToolsToolbar(QWidget):
         self.separator.setStyleSheet("background-color: #DBDCDA; margin: 5px 2px;")
         self.separator.setFixedHeight(1)
         
-        # Create eraser container with toggle button
-        eraser_container = QWidget()
-        eraser_layout = QVBoxLayout(eraser_container)
-        eraser_layout.setContentsMargins(0, 0, 0, 0)
-        eraser_layout.setSpacing(2)
-        
-        # Create eraser button
-        self.eraser_btn = self.create_tool_button(ERASER_ICON_PATH, "Eraser", button_size)
-        eraser_layout.addWidget(self.eraser_btn)
-        
         # Create eraser mode toggle button
-        self.eraser_mode_btn = self.create_switch_button("Transparent", "Color Eraser", button_size-10)
+        self.eraser_mode_btn = self.create_switch_button("Clear", "Color Eraser", button_size-10)
         self.eraser_mode_btn.setToolTip("Toggle between transparent eraser and color eraser modes")
         self.eraser_mode_btn.setStyleSheet("""
             QPushButton {
-                font-size: 8px;
+                font-size: 10px;
+                font-weight: 500;
                 padding: 2px;
-                background-color: #f8f8f8;
-                border: 1px solid #DBDCDA;
                 border-radius: 4px;
-            }
-            QPushButton:checked {
-                background-color: #e0e0e0;
-                border: 1px solid #c0c0c0;
+                background-color: #f5f5f5;
             }
             QPushButton:hover {
                 background-color: #e8e8e8;
             }
         """)
-        eraser_layout.addWidget(self.eraser_mode_btn)
         
         # Add buttons to layout
         self.layout.addWidget(self.crop_btn)
@@ -95,7 +89,8 @@ class ToolsToolbar(QWidget):
         self.layout.addWidget(self.rect_btn)
         self.layout.addWidget(self.text_btn)
         self.layout.addWidget(self.separator)
-        self.layout.addWidget(eraser_container)
+        self.layout.addWidget(self.eraser_btn)
+        self.layout.addWidget(self.eraser_mode_btn)
         
         # Add stretch to push everything to the top
         self.layout.addStretch()
@@ -123,7 +118,7 @@ class ToolsToolbar(QWidget):
         if is_color_mode:
             self.eraser_mode_btn.setText("Color")
         else:
-            self.eraser_mode_btn.setText("Transparent")
+            self.eraser_mode_btn.setText("Clear")
         
         # Update the eraser tool mode
         if hasattr(self.parent, 'tool_manager') and 'eraser' in self.parent.tool_manager.tools:
