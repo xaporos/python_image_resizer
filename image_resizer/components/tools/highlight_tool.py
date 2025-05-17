@@ -9,21 +9,27 @@ class HighlightTool(BaseTool):
         self.temp_image = None
         self.current_color = Qt.yellow  # Default color
         self.line_width = 10  # Default line width - wider than pencil
-        self.width_multiplier = 10  # Multiplier for thickness (increased to 5)
+        self.width_multiplier = 10  # Multiplier for thickness (increased to 10)
         self.opacity = 0.1  # Default opacity for highlighting
         self.drawing = False
         self.last_point = None
+        
+        # Create a separate highlight layer to prevent overlapping effects
+        self.highlight_layer = None
 
     def activate(self):
         # Store the current image when tool is activated
         for item in self.app.scene.items():
             if isinstance(item, QGraphicsPixmapItem):
                 self.temp_image = item.pixmap().copy()
+                # Initialize a clean highlight layer at the same size
+                self.highlight_layer = QColor(255, 255, 255, 0)  # Transparent white
                 break
 
     def deactivate(self):
         super().deactivate()
         self.temp_image = None
+        self.highlight_layer = None
         self.drawing = False
         self.last_point = None
 
@@ -70,6 +76,10 @@ class HighlightTool(BaseTool):
             # Get semi-transparent color
             highlight_color = self.get_highlight_color()
             
+            # Use Screen mode to prevent color accumulation when highlighting over highlighted areas
+            # Screen is perfect for highlighters - it lightens but doesn't dramatically accumulate
+            painter.setCompositionMode(QPainter.CompositionMode_Screen)
+            
             # Setup painter with high quality
             painter.setRenderHint(QPainter.Antialiasing)
             
@@ -113,6 +123,9 @@ class HighlightTool(BaseTool):
             
         painter = QPainter(self.temp_image)
         highlight_color = self.get_highlight_color()
+        
+        # Use Screen mode to prevent color accumulation
+        painter.setCompositionMode(QPainter.CompositionMode_Screen)
         
         # Setup painter
         painter.setRenderHint(QPainter.Antialiasing)
