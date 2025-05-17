@@ -16,6 +16,7 @@ class EraserTool(BaseTool):
         self.cursor_item = None  # Visual indicator for eraser boundary
         self.color_mode = False  # False = transparent erasing, True = color erasing
         self.current_color = QColor(Qt.black)  # Default color for color mode
+        self.current_image_path = None  # Track which image we're erasing
     
     @property
     def actual_line_width(self):
@@ -56,6 +57,11 @@ class EraserTool(BaseTool):
                 hasattr(self.app, 'scene'))
 
     def activate(self):
+        # Get current image path
+        current_item = self.app.image_list.currentItem()
+        if current_item:
+            self.current_image_path = self.app.image_handler.get_file_path_from_item(current_item)
+        
         # Store the current image when tool is activated
         for item in self.app.scene.items():
             if isinstance(item, QGraphicsPixmapItem):
@@ -78,6 +84,7 @@ class EraserTool(BaseTool):
         self.temp_image = None
         self.erasing = False
         self.last_point = None
+        self.current_image_path = None
         
         # Remove cursor indicator safely
         self.remove_cursor_safely()
@@ -162,6 +169,11 @@ class EraserTool(BaseTool):
         self.update_cursor_appearance()
         
     def mouse_press(self, event):
+        # Update the current image path before we start erasing
+        current_item = self.app.image_list.currentItem()
+        if current_item:
+            self.current_image_path = self.app.image_handler.get_file_path_from_item(current_item)
+            
         pos = self.app.view.mapToScene(event.pos())
         self.erasing = True
         self.last_point = pos
@@ -185,6 +197,15 @@ class EraserTool(BaseTool):
         
         # Update cursor position even if not erasing
         self.update_cursor_position(pos)
+        
+        # Verify we're still on the same image
+        current_item = self.app.image_list.currentItem()
+        if current_item:
+            current_path = self.app.image_handler.get_file_path_from_item(current_item)
+            if current_path != self.current_image_path:
+                self.erasing = False
+                self.last_point = None
+                return
         
         if not self.erasing or not self.temp_image:
             return
@@ -299,10 +320,18 @@ class EraserTool(BaseTool):
             pass
 
     def mouse_release(self, event):
-        self.erasing = False
-        self.last_point = None
-        
-        if not self.temp_image:
+        # Verify we're still on the same image
+        current_item = self.app.image_list.currentItem()
+        if current_item:
+            current_path = self.app.image_handler.get_file_path_from_item(current_item)
+            if current_path != self.current_image_path:
+                self.erasing = False
+                self.last_point = None
+                return
+                
+        if not self.erasing or not self.temp_image:
+            self.erasing = False
+            self.last_point = None
             return
             
         try:
@@ -311,6 +340,10 @@ class EraserTool(BaseTool):
             
             # Store the cursor item's scene and remove it before clearing the scene
             self.remove_cursor_safely()
+            
+            # Update edited images dictionary with current image
+            if self.current_image_path and self.temp_image:
+                self.app.image_handler.edited_images[self.current_image_path] = self.temp_image.copy()
             
             # Don't save state here since we already saved it at start
             self.app.scene.clear()
@@ -323,6 +356,13 @@ class EraserTool(BaseTool):
             self.update_cursor_position(pos)
             
             self.app.image_handler.update_info_label()
+            
+            # Save state after completing eraser action to ensure it's not lost
+            self.app.image_handler.save_state()
+            
         except (RuntimeError, ReferenceError):
             # Scene might have been deleted or changed
-            pass 
+            pass
+            
+        self.erasing = False
+        self.last_point = None 

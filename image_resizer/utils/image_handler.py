@@ -444,6 +444,20 @@ class ImageHandler:
 
     def image_selected(self, current, previous):
         """Handle image selection change"""
+        # Make sure to save the eraser state of the previous image before switching
+        if previous and hasattr(self.parent, 'tool_manager'):
+            prev_file_path = self.get_file_path_from_item(previous)
+            if prev_file_path and prev_file_path in self.edited_images:
+                # Force save state to preserve eraser changes before switching
+                # Get current tool to check if it's the eraser
+                current_tool = self.parent.tool_manager.current_tool
+                if current_tool and current_tool.__class__.__name__ == 'EraserTool':
+                    # Deactivate eraser explicitly to ensure it saves properly
+                    current_tool.deactivate()
+                
+                # Save state explicitly for the previous image
+                self.save_state(prev_file_path)
+        
         if not current:
             return
         
@@ -533,6 +547,17 @@ class ImageHandler:
         has_redo = file_path in self.image_redo_stacks and len(self.image_redo_stacks[file_path]) > 0
         self.parent.toolbar.undo_btn.setEnabled(has_history)
         self.parent.toolbar.redo_btn.setEnabled(has_redo)
+        
+        # Update current tool's image path if it's the eraser
+        if hasattr(self.parent, 'tool_manager'):
+            current_tool = self.parent.tool_manager.current_tool
+            if current_tool and current_tool.__class__.__name__ == 'EraserTool':
+                current_tool.current_image_path = file_path
+                # Update temp_image to match current pixmap
+                for item in self.parent.scene.items():
+                    if isinstance(item, QGraphicsPixmapItem):
+                        current_tool.temp_image = item.pixmap().copy()
+                        break
 
     def update_preview_and_info(self, file_path):
         """Update the preview area and info labels with current image"""
@@ -592,13 +617,13 @@ class ImageHandler:
             
             self.aspect_ratio = current_width / current_height
 
-    def save_state(self):
+    def save_state(self, specific_file_path=None):
         """Save current state for undo/redo"""
         current_item = self.parent.image_list.currentItem()
         if not current_item:
             return
             
-        file_path = self.get_file_path_from_item(current_item)
+        file_path = specific_file_path or self.get_file_path_from_item(current_item)
         if not file_path:
             return
         
