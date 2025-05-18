@@ -12,7 +12,7 @@ ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
 CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
 RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
 TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
-HIGHLIGHT_ICON_PATH = os.path.join(BASE_DIR, "assets", "highlight.png")
+HIGHLIGHT_ICON_PATH = os.path.join(BASE_DIR, "assets", "highlighter.png")
 ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "erase.png")
 
 class ToolsToolbar(QWidget):
