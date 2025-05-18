@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QGraphicsPixmapItem
-from PyQt5.QtGui import QPainter, QPen, QColor, QBrush
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
+from PyQt5.QtCore import Qt, QRectF, QPointF
 from .base_tool import BaseTool
 
 class HighlightTool(BaseTool):
@@ -13,25 +13,21 @@ class HighlightTool(BaseTool):
         self.opacity = 0.1  # Default opacity for highlighting
         self.drawing = False
         self.last_point = None
-        
-        # Create a separate highlight layer to prevent overlapping effects
-        self.highlight_layer = None
+        self.path_points = []  # Store points for the current stroke
 
     def activate(self):
         # Store the current image when tool is activated
         for item in self.app.scene.items():
             if isinstance(item, QGraphicsPixmapItem):
                 self.temp_image = item.pixmap().copy()
-                # Initialize a clean highlight layer at the same size
-                self.highlight_layer = QColor(255, 255, 255, 0)  # Transparent white
                 break
 
     def deactivate(self):
         super().deactivate()
         self.temp_image = None
-        self.highlight_layer = None
         self.drawing = False
         self.last_point = None
+        self.path_points = []  # Clear the path points
 
     def set_current_color(self, color):
         """Set the current color for highlighting (overrides the one in BaseTool)"""
@@ -55,15 +51,17 @@ class HighlightTool(BaseTool):
         self.drawing = True
         self.last_point = pos
         
+        # Reset path points
+        self.path_points = [pos]
+        
         # Find and store the current pixmap and save state
         for item in self.app.scene.items():
             if isinstance(item, QGraphicsPixmapItem):
                 self.temp_image = item.pixmap().copy()
                 self.app.image_handler.save_state()  # Save state when starting to draw
                 break
-                
-        # Draw initial marker at current position
-        self.draw_marker_at(pos)
+        
+        # We'll draw the entire highlight at once, so we don't need to draw on mouse press
 
     def mouse_move(self, event):
         if not self.drawing or not self.temp_image:
@@ -71,90 +69,81 @@ class HighlightTool(BaseTool):
             
         pos = self.app.view.mapToScene(event.pos())
         if self.last_point:
-            painter = QPainter(self.temp_image)
+            # Add point to path
+            self.path_points.append(pos)
             
-            # Get semi-transparent color
-            highlight_color = self.get_highlight_color()
+            # Create a temporary image for this stroke
+            temp_image_copy = self.temp_image.copy()
             
-            # Use Screen mode to prevent color accumulation when highlighting over highlighted areas
-            # Screen is perfect for highlighters - it lightens but doesn't dramatically accumulate
-            painter.setCompositionMode(QPainter.CompositionMode_Screen)
-            
-            # Setup painter with high quality
-            painter.setRenderHint(QPainter.Antialiasing)
-            
-            # Draw markers along the path from last point to current point
-            # Calculate distance between points to determine number of steps
-            dx = pos.x() - self.last_point.x()
-            dy = pos.y() - self.last_point.y()
-            distance = max(abs(dx), abs(dy))
-            steps = max(int(distance / (self.actual_width / 4)), 1)  # At least 1 step
-            
-            for i in range(steps + 1):
-                t = i / steps if steps > 0 else 0
-                x = self.last_point.x() * (1 - t) + pos.x() * t
-                y = self.last_point.y() * (1 - t) + pos.y() * t
-                
-                # Draw a rectangle/marker at this point
-                rect_width = self.actual_width
-                rect_height = self.actual_width * 1.2  # Make marker slightly taller than wide
-                
-                # Calculate rectangle coordinates
-                rect_x = x - rect_width / 2
-                rect_y = y - rect_height / 2
-                
-                # Draw the marker
-                painter.setBrush(QBrush(highlight_color))
-                painter.setPen(Qt.NoPen)  # No outline for the marker
-                painter.drawRect(QRectF(rect_x, rect_y, rect_width, rect_height))
-            
-            painter.end()
+            # Draw the complete path
+            self.draw_uniform_highlight(temp_image_copy)
             
             # Update scene with temporary image
             self.app.scene.clear()
-            self.app.scene.addPixmap(self.temp_image)
+            self.app.scene.addPixmap(temp_image_copy)
             self.app.image_handler.update_info_label()
             self.last_point = pos
 
-    def draw_marker_at(self, pos):
-        """Draw a marker at the specified position"""
-        if not self.temp_image:
+    def draw_uniform_highlight(self, pixmap):
+        """Draw a uniform highlight along the entire path"""
+        if not self.path_points or len(self.path_points) < 2:
             return
             
-        painter = QPainter(self.temp_image)
+        painter = QPainter(pixmap)
         highlight_color = self.get_highlight_color()
         
-        # Use Screen mode to prevent color accumulation
-        painter.setCompositionMode(QPainter.CompositionMode_Screen)
+        # Use SourceOver mode for natural alpha blending
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
         
-        # Setup painter
-        painter.setRenderHint(QPainter.Antialiasing)
+        # Setup painter with high quality
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         
-        # Calculate rectangle dimensions (marker)
-        rect_width = self.actual_width
-        rect_height = self.actual_width * 1.2  # Make marker slightly taller than wide
+        # Create a path for this highlight
+        half_width = self.actual_width / 2
         
-        # Calculate rectangle coordinates
-        rect_x = pos.x() - rect_width / 2
-        rect_y = pos.y() - rect_height / 2
+        # We'll simplify the approach to ensure consistent results in both directions
+        # Create a QPainterPath that follows the center line
+        path = QPainterPath()
+        path.moveTo(self.path_points[0])
         
-        # Draw the marker
-        painter.setBrush(QBrush(highlight_color))
-        painter.setPen(Qt.NoPen)  # No outline for the marker
-        painter.drawRect(QRectF(rect_x, rect_y, rect_width, rect_height))
+        for point in self.path_points[1:]:
+            path.lineTo(point)
+        
+        # Create a stroke with a flat cap and no joins for a clean highlighter look
+        pen = QPen(highlight_color, self.actual_width)
+        pen.setCapStyle(Qt.FlatCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        
+        # Set the pen
+        painter.setPen(pen)
+        
+        # Draw the path with the thick pen
+        painter.drawPath(path)
         
         painter.end()
-        
-        # Update scene with temporary image
-        self.app.scene.clear()
-        self.app.scene.addPixmap(self.temp_image)
-        self.app.image_handler.update_info_label()
 
     def mouse_release(self, event):
-        self.drawing = False
-        self.last_point = None
+        if not self.drawing or not self.path_points:
+            self.drawing = False
+            self.last_point = None
+            self.path_points = []
+            return
+            
+        # Create final highlight
         if self.temp_image:
-            # Don't save state here since we already saved it at start
+            temp_image_copy = self.temp_image.copy()
+            self.draw_uniform_highlight(temp_image_copy)
+            
+            # Update the temp_image with the final result
+            self.temp_image = temp_image_copy
+            
+            # Clear scene and show the result
             self.app.scene.clear()
             self.app.scene.addPixmap(self.temp_image)
-            self.app.image_handler.update_info_label() 
+            self.app.image_handler.update_info_label()
+        
+        # Reset state
+        self.drawing = False
+        self.last_point = None
+        self.path_points = [] 
