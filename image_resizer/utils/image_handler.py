@@ -2,7 +2,7 @@ import os
 from PIL import Image
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QGraphicsPixmapItem, QApplication
 from PyQt5.QtGui import QPixmap, QImage, QPainter
-from PyQt5.QtCore import Qt, QRectF, QByteArray, QBuffer
+from PyQt5.QtCore import Qt, QRectF, QByteArray, QBuffer, QTimer
 import numpy as np
 from image_resizer.utils.resizer import ImageResizer
 from io import BytesIO
@@ -296,8 +296,15 @@ class ImageHandler:
         # Show overlay
         self.parent.overlay.show()
         self.parent.overlay.resize(self.parent.size())
-        QApplication.processEvents()
+        # Set overlay text for resizing
+        self.parent.overlay.label.setText("Resizing images...")
         
+        # Force UI update and add a small delay to ensure overlay is visible
+        QApplication.processEvents()
+        QTimer.singleShot(100, self._perform_resize_all)
+        
+    def _perform_resize_all(self):
+        """Perform the actual resize all operation"""
         try:
             # Get current settings
             size_preset = self.parent.toolbar.size_combo.currentText()
@@ -306,12 +313,22 @@ class ImageHandler:
             # Store current selection to restore later
             current_item = self.parent.image_list.currentItem()
             
-            # Process all images
+            # Collect all items to process
+            items_to_process = []
             for i in range(self.parent.image_list.count()):
                 item = self.parent.image_list.item(i)
                 file_path = self.get_file_path_from_item(item)
-                if not file_path:
-                    continue
+                if file_path:
+                    items_to_process.append((item, file_path))
+            
+            # Update UI before processing starts
+            QApplication.processEvents()
+            
+            # Process all images
+            for idx, (item, file_path) in enumerate(items_to_process):
+                # Update overlay text with progress
+                self.parent.overlay.label.setText(f"Resizing images... ({idx + 1}/{len(items_to_process)})")
+                QApplication.processEvents()
                 
                 # Get the original or edited image for this file
                 source_image = None
@@ -363,14 +380,21 @@ class ImageHandler:
                     self.view_scale[file_path] = self.parent.view.transform().m11()
                     
                     self.update_info_label()
+                
+                # Force UI update every few processed files
+                if idx % 3 == 0:
+                    QApplication.processEvents()
             
             # Mark all as modified
             self.modified = True
             
+            # Final UI update before showing success dialog
+            QApplication.processEvents()
+            
             # Create custom success dialog
             success_dialog = QMessageBox(self.parent)
             success_dialog.setWindowTitle("Success")
-            success_dialog.setText(f"Successfully resized {self.parent.image_list.count()} images!")
+            success_dialog.setText(f"Successfully resized {len(items_to_process)} images!")
             success_dialog.setIcon(QMessageBox.Information)
             
             # Style the dialog to match app theme
@@ -1008,6 +1032,18 @@ class ImageHandler:
         if not output_dir:
             return
         
+        # Show overlay while saving
+        self.parent.overlay.show()
+        self.parent.overlay.resize(self.parent.size())
+        # Change the overlay label text for saving
+        self.parent.overlay.label.setText("Saving images...")
+        
+        # Force UI update and add a small delay to ensure overlay is visible
+        QApplication.processEvents()
+        QTimer.singleShot(100, lambda: self._perform_save_all(output_dir))
+        
+    def _perform_save_all(self, output_dir):
+        """Perform the actual save all operation"""
         success_count = 0
         failed_count = 0
         
@@ -1023,8 +1059,11 @@ class ImageHandler:
                 if file_path:
                     items_to_process.append((item, file_path))
             
+            # Update UI before processing starts
+            QApplication.processEvents()
+            
             # Process each item
-            for item, file_path in items_to_process:
+            for idx, (item, file_path) in enumerate(items_to_process):
                 # Check if the image has been modified
                 has_shapes = file_path in self.edited_images  # Has shapes or other edits
                 is_resized = file_path in self.resized_images  # Has been explicitly resized
@@ -1033,6 +1072,10 @@ class ImageHandler:
                 # Skip unmodified images
                 if not is_modified:
                     continue
+                
+                # Update overlay text with progress
+                self.parent.overlay.label.setText(f"Saving images... ({idx + 1}/{len(items_to_process)})")
+                QApplication.processEvents()
                 
                 # Check if the original file exists
                 original_file_exists = os.path.exists(file_path)
@@ -1116,9 +1159,16 @@ class ImageHandler:
                     
                     success_count += 1
                     
+                    # Force UI update every few saved files
+                    if idx % 3 == 0:
+                        QApplication.processEvents()
+                    
                 except Exception as e:
                     failed_count += 1
                     print(f"Error saving {save_path}: {str(e)}")
+                    
+            # Final UI update before hiding overlay
+            QApplication.processEvents()
                     
         except Exception as e:
             QMessageBox.warning(
@@ -1127,6 +1177,12 @@ class ImageHandler:
                 f"Failed to save images: {str(e)}"
             )
         finally:
+            # Hide overlay
+            self.parent.overlay.hide()
+            # Reset the overlay label text
+            self.parent.overlay.label.setText("Resizing images...")
+            QApplication.processEvents()
+            
             # Restore original selection
             if current_item:
                 self.parent.image_list.setCurrentItem(current_item)
