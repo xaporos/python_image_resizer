@@ -6,6 +6,10 @@ from PyQt5.QtCore import Qt, QRectF, QByteArray, QBuffer, QTimer
 import numpy as np
 from image_resizer.utils.resizer import ImageResizer
 from io import BytesIO
+import pillow_heif
+
+# Register HEIF opener with Pillow
+pillow_heif.register_heif_opener()
 
 class ImageHandler:
     def __init__(self, parent):
@@ -27,19 +31,42 @@ class ImageHandler:
         self.modified = False
         self.resized_images = set()  # Track which images have been resized
         self.view_scale = {}  # Track view scale for each image
+        self.heic_message_shown = False  # Track whether HEIC conversion message has been shown
         
     def select_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self.parent,
             "Select Images",
             "",
-            "Image Files (*.png *.jpg *.jpeg *.gif *.bmp *.tiff)"
+            "Image Files (*.png *.jpg *.jpeg *.gif *.bmp *.tiff *.heic *.HEIC)"
         )
         
         if file_paths:
+            has_heic = any(file_path.lower().endswith(('.heic')) for file_path in file_paths)
+            
+            # Show HEIC conversion message once per session if HEIC files are loaded
+            if has_heic and not self.heic_message_shown:
+                QMessageBox.information(
+                    self.parent,
+                    "HEIC Image Support",
+                    "HEIC images will be converted to JPEG format when edited or saved.\n\n"
+                    "Note: While we apply optimized compression, the saved file may still be "
+                    "larger than the original HEIC file due to format differences."
+                )
+                self.heic_message_shown = True
+            
             for file_path in file_paths:
                 try:
+                    # Check if it's a HEIC file
+                    is_heic = file_path.lower().endswith(('.heic'))
+                    
+                    # Open the image based on its format
                     image = Image.open(file_path)
+                    
+                    # Convert HEIC to RGB if needed
+                    if is_heic and image.mode == 'RGBA':
+                        image = image.convert('RGB')
+                    
                     self.images[file_path] = image
                     
                     # Add to list with custom widget
@@ -80,6 +107,9 @@ class ImageHandler:
             file_path = self.get_file_path_from_item(current_item)
             if not file_path:
                 return
+
+            # Check if it's a HEIC file
+            is_heic = file_path.lower().endswith('.heic')
 
             # Save state before updating
             self.save_state()
@@ -187,13 +217,16 @@ class ImageHandler:
             # Check if the original file exists (it might not if the image was renamed)
             original_file_exists = os.path.exists(file_path)
             
+            # Check if original is HEIC
+            is_heic_source = file_path.lower().endswith('.heic')
+            
             # Ensure save_path has a valid image extension
             save_ext = os.path.splitext(save_path)[1].lower()
             if not save_ext or save_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
-                # Use the extension from the original file
+                # Use the extension from the original file, but convert HEIC to JPG
                 orig_ext = os.path.splitext(file_path)[1].lower()
-                if not orig_ext or orig_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
-                    # Default to .jpg if no valid extension
+                if not orig_ext or orig_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'] or orig_ext == '.heic':
+                    # Default to .jpg if no valid extension or if HEIC
                     save_path = save_path + '.jpg'
                 else:
                     save_path = save_path + orig_ext
@@ -229,10 +262,17 @@ class ImageHandler:
             save_ext = os.path.splitext(save_path)[1].lower()
             if save_ext in ['.jpg', '.jpeg']:
                 # For JPEG, we need to handle quality settings
-                if is_modified:
-                    # Only apply quality settings if the image has been modified
+                if is_modified or is_heic_source:
+                    # Only apply quality settings if the image has been modified or if from HEIC
                     quality = self.parent.toolbar.quality_slider.value()
-                    pixmap.save(save_path, 'JPEG', quality)
+                    
+                    # For HEIC sources, apply higher compression to better match original file size
+                    if is_heic_source and file_path in self.edited_images:
+                        # Apply additional compression for HEIC sources
+                        adjusted_quality = max(30, int(quality * 0.6))  # Scale down quality but keep minimum 30
+                        pixmap.save(save_path, 'JPEG', adjusted_quality)
+                    else:
+                        pixmap.save(save_path, 'JPEG', quality)
                 else:
                     # For unmodified images, save with maximum quality
                     pixmap.save(save_path, 'JPEG', 100)
@@ -262,6 +302,11 @@ class ImageHandler:
                 else:
                     if is_resized:
                         message = (f"Resized image saved successfully!\n\n"
+                                  f"Original size: {orig_mb:.2f} MB\n"
+                                  f"New size: {new_mb:.2f} MB\n"
+                                  f"Reduction: {reduction:.1f}%")
+                    elif is_heic_source:
+                        message = (f"HEIC image converted and saved successfully!\n\n"
                                   f"Original size: {orig_mb:.2f} MB\n"
                                   f"New size: {new_mb:.2f} MB\n"
                                   f"Reduction: {reduction:.1f}%")
@@ -343,6 +388,10 @@ class ImageHandler:
                     source_image = Image.open(BytesIO(temp_buffer.data()))
                 else:
                     source_image = self.images[file_path]
+                    
+                # Ensure source image is in RGB mode if needed
+                if source_image.mode == 'RGBA':
+                    source_image = source_image.convert('RGB')
                 
                 # Resize the image
                 resized_image = self.resizer.resize_single(source_image, size_preset)
@@ -993,10 +1042,21 @@ class ImageHandler:
                 # Get file extension
                 file_ext = os.path.splitext(file_path)[1].lower()
                 
+                # Check if this is a HEIC source file
+                is_heic_source = file_path.lower().endswith('.heic')
+                
                 # Use same quality setting for both .jpg and .jpeg
-                if file_ext in ['.jpg', '.jpeg']:
-                    quality = self.parent.toolbar.quality_slider.value()
-                    pixmap.save(buffer, "JPEG", quality)
+                if file_ext in ['.jpg', '.jpeg'] or is_heic_source:
+                    # For HEIC source files that have been edited, use higher compression
+                    # to compensate for the loss of HEIC's efficient compression
+                    if is_heic_source and file_path in self.edited_images:
+                        # Get slider quality but apply additional compression
+                        base_quality = self.parent.toolbar.quality_slider.value()
+                        adjusted_quality = max(30, int(base_quality * 0.6))  # Scale down quality but keep minimum 30
+                        pixmap.save(buffer, "JPEG", adjusted_quality)
+                    else:
+                        quality = self.parent.toolbar.quality_slider.value()
+                        pixmap.save(buffer, "JPEG", quality)
                 else:
                     # For other formats, use their native format
                     format_map = {
@@ -1067,7 +1127,8 @@ class ImageHandler:
                 # Check if the image has been modified
                 has_shapes = file_path in self.edited_images  # Has shapes or other edits
                 is_resized = file_path in self.resized_images  # Has been explicitly resized
-                is_modified = has_shapes or is_resized
+                is_heic = file_path.lower().endswith('.heic')  # Is HEIC format
+                is_modified = has_shapes or is_resized or is_heic  # Consider HEIC as modified
                 
                 # Skip unmodified images
                 if not is_modified:
@@ -1084,8 +1145,8 @@ class ImageHandler:
                 base_name = os.path.basename(file_path)
                 original_ext = os.path.splitext(file_path)[1].lower()
                 
-                # Ensure we have a valid extension
-                if not original_ext or original_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']:
+                # Ensure we have a valid extension, convert HEIC to JPG
+                if not original_ext or original_ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'] or original_ext == '.heic':
                     original_ext = '.jpg'
                 
                 save_path = os.path.join(output_dir, f"{os.path.splitext(base_name)[0]}{original_ext}")
@@ -1142,7 +1203,14 @@ class ImageHandler:
                         
                         # Save with quality setting
                         quality = self.parent.toolbar.quality_slider.value()
-                        pixmap.save(save_path, 'JPEG', quality)
+                        
+                        # For HEIC sources, apply higher compression to better match original file size
+                        if is_heic and file_path in self.edited_images:
+                            # Apply additional compression for HEIC sources
+                            adjusted_quality = max(30, int(quality * 0.6))  # Scale down quality but keep minimum 30
+                            pixmap.save(save_path, 'JPEG', adjusted_quality)
+                        else:
+                            pixmap.save(save_path, 'JPEG', quality)
                     else:
                         # For other formats, use their native format
                         format_map = {
