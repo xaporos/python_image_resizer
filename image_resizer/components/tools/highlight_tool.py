@@ -99,21 +99,24 @@ class HighlightTool(BaseTool):
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         
-        # Create a path for this highlight
-        half_width = self.actual_width / 2
-        
-        # We'll simplify the approach to ensure consistent results in both directions
-        # Create a QPainterPath that follows the center line
+        # Create a better path for highlighting with proper square ends
         path = QPainterPath()
-        path.moveTo(self.path_points[0])
         
+        # Get the path points
+        first_point = self.path_points[0]
+        last_point = self.path_points[-1]
+        
+        # Start path
+        path.moveTo(first_point)
+        
+        # Add all intermediate points
         for point in self.path_points[1:]:
             path.lineTo(point)
         
-        # Create a stroke with a flat cap and no joins for a clean highlighter look
+        # Create a pen with square cap style for proper highlighting
         pen = QPen(highlight_color, self.actual_width)
-        pen.setCapStyle(Qt.FlatCap)
-        pen.setJoinStyle(Qt.RoundJoin)
+        pen.setCapStyle(Qt.SquareCap)  # Square caps for better highlighting coverage
+        pen.setJoinStyle(Qt.RoundJoin)  # Round joins for smoother corners
         
         # Set the pen
         painter.setPen(pen)
