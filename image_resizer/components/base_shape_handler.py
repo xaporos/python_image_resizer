@@ -102,12 +102,29 @@ class BaseShapeHandler:
                     
                     # Draw arrow head if this is an arrow shape
                     if shape.data(0) == "arrow":
-                        # Get stored arrow head points
-                        arrow_points = shape.data(2)
-                        if arrow_points:
-                            arrow_p1, arrow_p2 = arrow_points
-                            painter.drawLine(line.p2(), arrow_p1)
-                            painter.drawLine(line.p2(), arrow_p2)
+                        # Get the arrow's stored properties
+                        arrow_size = shape.data(1)
+                        
+                        # Calculate endpoint in pixmap coordinates
+                        p2 = line.p2()
+                        
+                        # Calculate angle
+                        angle = math.atan2(line.dy(), line.dx())
+                        
+                        # Calculate arrow points directly
+                        arrow_p1 = QPointF(
+                            p2.x() - arrow_size * math.cos(angle + math.pi/6),
+                            p2.y() - arrow_size * math.sin(angle + math.pi/6)
+                        )
+                        
+                        arrow_p2 = QPointF(
+                            p2.x() - arrow_size * math.cos(angle - math.pi/6),
+                            p2.y() - arrow_size * math.sin(angle - math.pi/6)
+                        )
+                        
+                        # Draw arrow head
+                        painter.drawLine(p2, arrow_p1)
+                        painter.drawLine(p2, arrow_p2)
                 elif isinstance(shape, QGraphicsEllipseItem):
                     rect = shape.rect()
                     rect.translate(shape.pos())
@@ -124,7 +141,12 @@ class BaseShapeHandler:
                 
                 # Update scene with clean pixmap
                 self.app.scene.clear()
-                self.app.scene.addPixmap(pixmap)
+                pixmap_item = self.app.scene.addPixmap(pixmap)
+                
+                # Make sure we don't have any artifacts from old shapes
+                for item in self.app.scene.items():
+                    if not isinstance(item, QGraphicsPixmapItem):
+                        self.app.scene.removeItem(item)
 
             # Deselect the current tool
             if hasattr(self.app, 'tool_manager'):
@@ -423,6 +445,7 @@ class BaseShapeHandler:
                     # Update stored arrow head points in scene coordinates
                     self.selected_shape.setData(2, [arrow_p1_scene, arrow_p2_scene])
                     self.selected_shape.setData(3, angle)
+                    self.selected_shape.setData(4, p2_scene)  # Store end point in scene coordinates
             else:
                 # For circles and rectangles, use the same coordinate handling as lines
                 item_pos = self.selected_shape.mapFromScene(pos)
@@ -475,6 +498,7 @@ class BaseShapeHandler:
                 # Update stored arrow head points in scene coordinates
                 self.selected_shape.setData(2, [arrow_p1_scene, arrow_p2_scene])
                 self.selected_shape.setData(3, angle)
+                self.selected_shape.setData(4, p2_scene)  # Store end point in scene coordinates
             
             self.update_resize_handles()
             return True

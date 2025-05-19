@@ -13,44 +13,47 @@ class ArrowLineItem(QGraphicsLineItem):
         # Set data for base shape handler compatibility
         self.setData(0, "arrow")
         self.setData(1, self._arrow_size)
-
+        
     def paint(self, painter, option, widget):
         # Draw the main line
         painter.setPen(self.pen())
-        painter.drawLine(self.line())
-        
-        # Calculate arrow head points in scene coordinates
         line = self.line()
-        p1_scene = self.mapToScene(line.p1())
-        p2_scene = self.mapToScene(line.p2())
+        painter.drawLine(line)
         
-        # Calculate angle in scene coordinates
-        dx = p2_scene.x() - p1_scene.x()
-        dy = p2_scene.y() - p1_scene.y()
-        angle = math.atan2(dy, dx)
+        # Only draw arrow if line has some length
+        if line.length() < 1:
+            return
         
-        # Calculate arrow head points in scene coordinates
-        arrow_p1_scene = QPointF(
-            p2_scene.x() - self._arrow_size * math.cos(angle + math.pi/6),
-            p2_scene.y() - self._arrow_size * math.sin(angle + math.pi/6)
+        # Get the line endpoints in item coordinates
+        p2 = line.p2()  # End point
+        
+        # Calculate angle for arrow head
+        angle = math.atan2(line.dy(), line.dx())
+        
+        # Calculate arrow head points in item coordinates
+        arrow_p1 = QPointF(
+            p2.x() - self._arrow_size * math.cos(angle + math.pi/6),
+            p2.y() - self._arrow_size * math.sin(angle + math.pi/6)
         )
         
-        arrow_p2_scene = QPointF(
-            p2_scene.x() - self._arrow_size * math.cos(angle - math.pi/6),
-            p2_scene.y() - self._arrow_size * math.sin(angle - math.pi/6)
+        arrow_p2 = QPointF(
+            p2.x() - self._arrow_size * math.cos(angle - math.pi/6),
+            p2.y() - self._arrow_size * math.sin(angle - math.pi/6)
         )
         
-        # Convert scene coordinates to item coordinates for drawing
-        arrow_p1 = self.mapFromScene(arrow_p1_scene)
-        arrow_p2 = self.mapFromScene(arrow_p2_scene)
+        # Draw the arrow head directly in item coordinates
+        painter.drawLine(p2, arrow_p1)
+        painter.drawLine(p2, arrow_p2)
         
-        # Store points in scene coordinates for the base shape handler
+        # Store the data for use in the shape handler when finalizing
+        p2_scene = self.mapToScene(p2)
+        arrow_p1_scene = self.mapToScene(arrow_p1)
+        arrow_p2_scene = self.mapToScene(arrow_p2)
+        
+        # Store all necessary data
         self.setData(2, [arrow_p1_scene, arrow_p2_scene])
         self.setData(3, angle)
-        
-        # Draw the arrow head
-        painter.drawLine(self.line().p2(), arrow_p1)
-        painter.drawLine(self.line().p2(), arrow_p2)
+        self.setData(4, p2_scene)
 
     def set_arrow_size(self, size):
         self._arrow_size = size
