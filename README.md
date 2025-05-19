@@ -1,11 +1,55 @@
-# python_image_resizer
+# ResizeX - Image Resizer and Editor
 
-2. Using the application:
-   - Click "Select Images" to load one or more images
-   - Select an image from the list on the left to preview
-   - Choose a size preset or keep custom size
-   - Adjust quality slider for JPEG images
-   - Click "Resize Selected" for single image or "Resize All" for batch processing
+ResizeX is a powerful desktop application for resizing, editing, and annotating images with an intuitive interface.
+
+## Installation
+
+1. Make sure you have Python 3.7+ installed
+2. Clone this repository or download the source code
+3. Install required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+4. Run the application:
+   ```
+   python -m image_resizer
+   ```
+
+## Features
+
+### Image Resizing and Format Conversion
+- Resize single images or batch process multiple files
+- Maintain aspect ratio automatically
+- Adjust output quality for optimized file size
+- Support for common formats: JPG, PNG, GIF, BMP, TIFF
+- Apple HEIC/HEIF format support
+
+### Image Editing Tools
+- **Draw**: Free-hand drawing with adjustable line width
+- **Text**: Add text annotations with customizable font size and color
+- **Shapes**: Add rectangles, circles, lines, and arrows
+- **Highlighter**: Highlight areas with semi-transparent marker
+- **Eraser**: Remove parts of your annotations
+- **Crop**: Crop images to desired dimensions
+
+### Color Controls
+- Color palette with preset colors
+- Color picker for custom colors
+- Transparency options for highlighting
+
+### User Interface
+- Intuitive toolbar design
+- Image list for quick selection
+- Real-time preview of edits
+- Undo/redo functionality
+- Zoom controls for detailed editing
+- Image property information (dimensions and file size)
+
+### File Management
+- Open multiple files at once
+- Save individual images or batch save all
+- Rename images within the application
+- Delete images from the workspace
 
 ## Size Presets
 
@@ -14,25 +58,19 @@
 - Large: 1600px width
 - Custom: Maintains original dimensions
 
-## Features in Detail
+## Keyboard Shortcuts
 
-### Single Image Resizing
-- Select and preview individual images
-- Adjust quality settings
-- Choose output location
-- Maintain aspect ratio
+- **Ctrl+Z**: Undo
+- **Ctrl+Y** or **Ctrl+Shift+Z**: Redo
+- **Ctrl+S**: Save current image
+- **Ctrl+O**: Open images
 
-### Batch Processing
-- Process multiple images at once
-- Select output directory
-- Apply same settings to all images
-- Progress feedback
+## Dependencies
 
-### Image Preview
-- Real-time preview of selected image
-- Display of original dimensions
-- File size information
-- New size preview when selecting presets
+- PyQt5: GUI framework
+- Pillow: Image processing
+- NumPy: Array operations
+- Pillow-HEIF: HEIC/HEIF format support
 
 ## License
 
