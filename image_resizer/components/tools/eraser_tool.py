@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsEll
 from PyQt5.QtGui import QPainter, QPen, QColor, QBrush
 from PyQt5.QtCore import Qt, QRectF
 from .base_tool import BaseTool
-import sip
 
 class EraserTool(BaseTool):
     def __init__(self, app):
@@ -53,8 +52,7 @@ class EraserTool(BaseTool):
     def is_cursor_valid(self):
         """Check if cursor item is still valid and not deleted"""
         return (self.cursor_item is not None and 
-                not sip.isdeleted(self.cursor_item) and 
-                hasattr(self.app, 'scene'))
+           hasattr(self.app, 'scene'))
 
     def activate(self):
         # Get current image path

@@ -7,6 +7,7 @@ import numpy as np
 from image_resizer.utils.resizer import ImageResizer
 from io import BytesIO
 import pillow_heif
+from image_resizer.ui.styles import (SUCCESS_RESIZE_DIALOG_STYLE, SUCCESS_SAVE_DIALOG, ERROR_SAVE_DIALOG)
 
 # Register HEIF opener with Pillow
 pillow_heif.register_heif_opener()
@@ -447,29 +448,7 @@ class ImageHandler:
             success_dialog.setIcon(QMessageBox.Information)
             
             # Style the dialog to match app theme
-            success_dialog.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QMessageBox QLabel {
-                    color: #333333;
-                    font-size: 14px;
-                    font-weight: 500;
-                    padding: 10px;
-                }
-                QPushButton {
-                    color: black;
-                    background-color: white;
-                    padding: 8px 16px;
-                    border: 1px solid #DBDCDA;
-                    border-radius: 4px;
-                    font-weight: 500;
-                    min-width: 80px;
-                }
-                QPushButton:hover {
-                    border: 1px solid #242424;
-                }
-            """)
+            success_dialog.setStyleSheet(SUCCESS_RESIZE_DIALOG_STYLE)
             
             # Show the dialog
             success_dialog.exec_()
@@ -1268,29 +1247,7 @@ class ImageHandler:
             success_dialog.setIcon(QMessageBox.Information)
             
             # Style the dialog to match app theme
-            success_dialog.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QMessageBox QLabel {
-                    color: #333333;
-                    font-size: 14px;
-                    font-weight: 500;
-                    padding: 10px;
-                }
-                QPushButton {
-                    color: black;
-                    background-color: white;
-                    padding: 8px 16px;
-                    border: 1px solid #DBDCDA;
-                    border-radius: 4px;
-                    font-weight: 500;
-                    min-width: 80px;
-                }
-                QPushButton:hover {
-                    border: 1px solid #242424;
-                }
-            """)
+            success_dialog.setStyleSheet(SUCCESS_SAVE_DIALOG)
             
             success_dialog.exec_()
         elif failed_count > 0:
@@ -1301,29 +1258,7 @@ class ImageHandler:
             error_dialog.setIcon(QMessageBox.Warning)
             
             # Style the dialog to match app theme
-            error_dialog.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QMessageBox QLabel {
-                    color: #333333;
-                    font-size: 14px;
-                    font-weight: 500;
-                    padding: 10px;
-                }
-                QPushButton {
-                    color: black;
-                    background-color: white;
-                    padding: 8px 16px;
-                    border: 1px solid #DBDCDA;
-                    border-radius: 4px;
-                    font-weight: 500;
-                    min-width: 80px;
-                }
-                QPushButton:hover {
-                    border: 1px solid #242424;
-                }
-            """)
+            error_dialog.setStyleSheet(ERROR_SAVE_DIALOG)
             
             error_dialog.exec_()
 

@@ -60,6 +60,48 @@ TOOL_BUTTON_STYLE = """
     }
 """
 
+RESIZE_BUTTON_STYLE = """
+            QPushButton {
+                background-color: #1877F2;
+                color: white;
+                padding: 8px 15px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #1464D2;
+            }
+        """
+
+RENAME_BUTTON_STYLE = """
+            QPushButton {
+                border: none;
+                background: transparent;
+                color: #666666;
+                font-size: 16px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #e8e8e8;
+                border-radius: 4px;
+            }
+        """
+
+DELETE_BUTTON_STYLE = """
+            QPushButton {
+                border: none;
+                background: transparent;
+                color: #666666;
+                font-size: 16px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #ffebee;
+                color: #f44336;
+                border-radius: 4px;
+            }
+        """
+
 COMBO_BOX_STYLE = """
             QComboBox {
                 border: 1px solid #ddd;
@@ -108,6 +150,15 @@ COMBO_BOX_STYLE = """
             QComboBox QAbstractItemView::item:selected {
                 background-color: #1877F2;
                 color: white;
+            }
+        """
+
+DROPDOWN_STYLE = """
+            QFrame {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 10px;
             }
         """
 
@@ -172,9 +223,18 @@ ZOOM_SLIDER_STYLE = """
             }
         """
 
+MAIN_WINDOW_STYLE = """
+            QWidget {
+                background-color: white;
+               
+                border-radius: 4px;
+            }
+        """
+
 IMAGE_LIST_STYLE = """
             QListWidget {
                 background-color: white;
+                border: 1px solid #DBDCDA;
                 border-radius: 4px;
                 padding: 4px;
             }
@@ -191,12 +251,119 @@ IMAGE_LIST_STYLE = """
             }
         """
 
-MAIN_WINDOW_STYLE = """
-            QWidget {
-                background-color: white;
-               
-                border-radius: 4px;
+LABEL_STYLE = "background-color: white;"
+TOOLBAR_LABEL_STYLE = "background-color: #f5f5f5;"
+IMAGE_NAME_LABEL_STYLE = """
+            QLabel { 
+                color: #333333;
+                font-size: 13px;
+                padding: 2px;
             }
         """
 
-LABEL_STYLE = "background-color: white;"
+RENAME_DIALOG_STYLE = """
+            QInputDialog {
+                background-color: white;
+            }
+            QLabel {
+                color: #333333;
+                font-size: 14px;
+                font-weight: 500;
+                padding: 10px;
+            }
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                background-color: white;
+                color: #333333;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #242424;
+            }
+            QPushButton {
+                color: black;
+                background-color: white;
+                padding: 8px 16px;
+                border: 1px solid #DBDCDA;
+                border-radius: 4px;
+                font-weight: 500;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                border: 1px solid #242424;
+            }
+        """
+
+SUCCESS_RESIZE_DIALOG_STYLE = """
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """
+
+SUCCESS_SAVE_DIALOG = """
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """
+
+ERROR_SAVE_DIALOG = """
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: #333333;
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 10px;
+                }
+                QPushButton {
+                    color: black;
+                    background-color: white;
+                    padding: 8px 16px;
+                    border: 1px solid #DBDCDA;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    border: 1px solid #242424;
+                }
+            """

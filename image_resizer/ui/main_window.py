@@ -3,8 +3,9 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                            QMenu, QGraphicsScene, QLabel, QSlider, QPushButton, 
                            QShortcut, QFrame, QSizePolicy)
 from PyQt5.QtCore import Qt, QSize, QRectF
-from PyQt5.QtGui import QKeySequence, QColor, QPainter, QPainterPath
-from image_resizer.ui.styles import BUTTON_STYLE, IMAGE_LIST_STYLE, LABEL_STYLE, MAIN_STYLE, MAIN_WINDOW_STYLE, SLIDER_STYLE, ZOOM_SLIDER_STYLE
+from PyQt5.QtGui import QKeySequence, QColor, QPainter, QPainterPath, QIcon
+from image_resizer.ui.styles import (IMAGE_LIST_STYLE, LABEL_STYLE, 
+                                     MAIN_STYLE, ZOOM_SLIDER_STYLE)
 from image_resizer.ui.toolbar import Toolbar
 from image_resizer.ui.tools_toolbar import ToolsToolbar
 from image_resizer.ui.color_palette import ColorPalette
@@ -12,6 +13,7 @@ from image_resizer.components.custom_graphics_view import CustomGraphicsView
 from image_resizer.utils.image_handler import ImageHandler
 from image_resizer.components.tools.tool_manager import ToolManager
 from image_resizer.ui.custom_list_item import ImageListItemWidget
+from image_resizer.ui.icons import APP_ICON_PATH
 
 class SimpleOverlay(QWidget):
     def __init__(self, parent=None):
@@ -54,6 +56,7 @@ class ImageResizerApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("resizex")
+        self.setWindowIcon(QIcon(APP_ICON_PATH))  # Set window icon
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(QSize(1400, 600))
 
@@ -228,25 +231,7 @@ class ImageResizerApp(QMainWindow):
         # Create image list
         self.image_list = QListWidget()
         self.image_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.image_list.setStyleSheet("""
-            QListWidget {
-                background-color: white;
-                border: 1px solid #DBDCDA;
-                border-radius: 4px;
-                padding: 4px;
-            }
-            QListWidget::item {
-                background: transparent;
-                border-radius: 4px;
-                margin: 2px 4px;
-            }
-            QListWidget::item:selected {
-                background-color: #f5f5f5;
-            }
-            QListWidget::item:hover {
-                background-color: #f5f5f5;
-            }
-        """)
+        self.image_list.setStyleSheet(IMAGE_LIST_STYLE)
         self.image_list.setSelectionMode(QListWidget.SingleSelection)
         self.image_list.setSelectionBehavior(QListWidget.SelectItems)
         right_layout.addWidget(self.image_list)

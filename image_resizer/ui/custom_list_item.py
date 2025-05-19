@@ -2,8 +2,9 @@ import os
 
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QPushButton, 
                            QInputDialog, QLineEdit, QListWidget)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QIcon
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QIcon
+from image_resizer.ui.styles import RENAME_BUTTON_STYLE, IMAGE_NAME_LABEL_STYLE, DELETE_BUTTON_STYLE, RENAME_DIALOG_STYLE
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DELETE_ICON_PATH = os.path.join(BASE_DIR, "assets", "delete.png")
@@ -25,13 +26,7 @@ class ImageListItemWidget(QWidget):
         # Image name label
         self.name_label = QLabel(self.image_name)
         self.name_label.setMinimumWidth(150)
-        self.name_label.setStyleSheet("""
-            QLabel { 
-                color: #333333;
-                font-size: 13px;
-                padding: 2px;
-            }
-        """)
+        self.name_label.setStyleSheet(IMAGE_NAME_LABEL_STYLE)
         layout.addWidget(self.name_label)
         
         layout.addStretch()
@@ -42,19 +37,7 @@ class ImageListItemWidget(QWidget):
         self.rename_btn.setFixedSize(28, 28)
         self.rename_btn.setToolTip("Rename")
         self.rename_btn.clicked.connect(self.rename_clicked)
-        self.rename_btn.setStyleSheet("""
-            QPushButton {
-                border: none;
-                background: transparent;
-                color: #666666;
-                font-size: 16px;
-                padding: 4px;
-            }
-            QPushButton:hover {
-                background: #e8e8e8;
-                border-radius: 4px;
-            }
-        """)
+        self.rename_btn.setStyleSheet(RENAME_BUTTON_STYLE)
         layout.addWidget(self.rename_btn)
         
         # Delete button
@@ -63,20 +46,7 @@ class ImageListItemWidget(QWidget):
         self.delete_btn.setFixedSize(28, 28)
         self.delete_btn.setToolTip("Delete")
         self.delete_btn.clicked.connect(self.delete_clicked)
-        self.delete_btn.setStyleSheet("""
-            QPushButton {
-                border: none;
-                background: transparent;
-                color: #666666;
-                font-size: 16px;
-                padding: 4px;
-            }
-            QPushButton:hover {
-                background: #ffebee;
-                color: #f44336;
-                border-radius: 4px;
-            }
-        """)
+        self.delete_btn.setStyleSheet(DELETE_BUTTON_STYLE)
         layout.addWidget(self.delete_btn)
         
         # Initially hide rename button, show delete button
@@ -109,40 +79,7 @@ class ImageListItemWidget(QWidget):
         dialog.setTextValue(self.image_name)
         
         # Style the dialog to match app theme
-        dialog.setStyleSheet("""
-            QInputDialog {
-                background-color: white;
-            }
-            QLabel {
-                color: #333333;
-                font-size: 14px;
-                font-weight: 500;
-                padding: 10px;
-            }
-            QLineEdit {
-                padding: 8px;
-                border: 1px solid #DBDCDA;
-                border-radius: 4px;
-                background-color: white;
-                color: #333333;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #242424;
-            }
-            QPushButton {
-                color: black;
-                background-color: white;
-                padding: 8px 16px;
-                border: 1px solid #DBDCDA;
-                border-radius: 4px;
-                font-weight: 500;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                border: 1px solid #242424;
-            }
-        """)
+        dialog.setStyleSheet(RENAME_DIALOG_STYLE)
         
         ok = dialog.exec_()
         new_name = dialog.textValue()

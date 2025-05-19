@@ -1,23 +1,9 @@
-import os
 from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QComboBox, QSlider, QLabel, QWidget, QToolBar, QFrame
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QPoint
-from image_resizer.ui.styles import BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, COMBO_BOX_STYLE, LABEL_STYLE
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SAVE_ICON_PATH = os.path.join(BASE_DIR, "assets", "save.png")
-SAVE_ALL_ICON_PATH = os.path.join(BASE_DIR, "assets", "save_all.png")
-OPEN_ICON_PATH = os.path.join(BASE_DIR, "assets", "open.png")
-CROP_ICON_PATH = os.path.join(BASE_DIR, "assets", "crop.png")
-PENCIL_ICON_PATH = os.path.join(BASE_DIR, "assets", "pencil.png")
-LINE_ICON_PATH = os.path.join(BASE_DIR, "assets", "line.png")
-ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
-CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
-RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
-TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
-ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "eraser.png")
-UNDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "undo.png")
-REDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "redo.png")
+from image_resizer.ui.styles import (BUTTON_STYLE, SLIDER_STYLE, TOOL_BUTTON_STYLE, 
+                                     COMBO_BOX_STYLE, LABEL_STYLE, TOOLBAR_LABEL_STYLE)
+from image_resizer.ui.icons import (SAVE_ALL_ICON_PATH, SAVE_ICON_PATH, OPEN_ICON_PATH, UNDO_ICON_PATH, REDO_ICON_PATH)
 
 class Toolbar(QWidget):
     def __init__(self, parent=None):
@@ -161,7 +147,7 @@ class Toolbar(QWidget):
         thickness_layout.setContentsMargins(8, 0, 0, 0)
         
         thickness_label = QLabel("Thickness:")
-        thickness_label.setStyleSheet(LABEL_STYLE)
+        thickness_label.setStyleSheet(TOOLBAR_LABEL_STYLE)
         thickness_label.setFixedHeight(16)
         thickness_label.setAlignment(Qt.AlignVCenter)
         

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                            QComboBox, QSlider, QLabel, QFrame)
 from PyQt5.QtCore import Qt
-from .styles import COMBO_BOX_STYLE
+from .styles import COMBO_BOX_STYLE, RESIZE_BUTTON_STYLE, DROPDOWN_STYLE
 
 class ResizeDropdown(QFrame):
     def __init__(self, parent=None):
@@ -10,14 +10,7 @@ class ResizeDropdown(QFrame):
         self.setVisible(False)  # Hidden by default
         
         # Style the dropdown
-        self.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 10px;
-            }
-        """)
+        self.setStyleSheet(DROPDOWN_STYLE)
         
         # Add shadow effect
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
@@ -58,25 +51,12 @@ class ResizeDropdown(QFrame):
         quality_layout.addWidget(self.quality_value)
         layout.addLayout(quality_layout)
         
-        # Resize buttons
-        button_style = """
-            QPushButton {
-                background-color: #1877F2;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 4px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #1464D2;
-            }
-        """
         
         buttons_layout = QHBoxLayout()
         self.resize_btn = QPushButton("Resize Selected")
         self.resize_all_btn = QPushButton("Resize All")
-        self.resize_btn.setStyleSheet(button_style)
-        self.resize_all_btn.setStyleSheet(button_style)
+        self.resize_btn.setStyleSheet(RESIZE_BUTTON_STYLE)
+        self.resize_all_btn.setStyleSheet(RESIZE_BUTTON_STYLE)
         buttons_layout.addWidget(self.resize_btn)
         buttons_layout.addWidget(self.resize_all_btn)
         layout.addLayout(buttons_layout)

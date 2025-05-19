@@ -16,7 +16,7 @@ class BoundingBoxItem(QGraphicsRectItem):
 
     def update_geometry(self):
         # Get shape geometry including its position
-        if isinstance(self.shape, QGraphicsLineItem):
+        if isinstance(self.shape):
             rect = self.shape.boundingRect()
         else:
             rect = self.shape.rect()

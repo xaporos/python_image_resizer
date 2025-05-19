@@ -1,19 +1,10 @@
-import os
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame, QHBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from image_resizer.ui.styles import TOOL_BUTTON_STYLE
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CROP_ICON_PATH = os.path.join(BASE_DIR, "assets", "crop.png")
-PENCIL_ICON_PATH = os.path.join(BASE_DIR, "assets", "pencil.png")
-LINE_ICON_PATH = os.path.join(BASE_DIR, "assets", "line.png")
-ARROW_ICON_PATH = os.path.join(BASE_DIR, "assets", "arrow.png")
-CIRCLE_ICON_PATH = os.path.join(BASE_DIR, "assets", "circle.png")
-RECT_ICON_PATH = os.path.join(BASE_DIR, "assets", "rect.png")
-TEXT_ICON_PATH = os.path.join(BASE_DIR, "assets", "text.png")
-HIGHLIGHT_ICON_PATH = os.path.join(BASE_DIR, "assets", "highlighter.png")
-ERASER_ICON_PATH = os.path.join(BASE_DIR, "assets", "erase.png")
+from image_resizer.ui.icons import (CROP_ICON_PATH, PENCIL_ICON_PATH, LINE_ICON_PATH, 
+                                    ARROW_ICON_PATH, CIRCLE_ICON_PATH, RECT_ICON_PATH, 
+                                    TEXT_ICON_PATH, HIGHLIGHT_ICON_PATH, ERASER_ICON_PATH)
 
 class ToolsToolbar(QWidget):
     def __init__(self, parent=None):
