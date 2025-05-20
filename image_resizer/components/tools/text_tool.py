@@ -1,62 +1,101 @@
 from PyQt5.QtWidgets import (QGraphicsTextItem, QWidget, QHBoxLayout, 
                            QFontComboBox, QSpinBox, QToolButton, QColorDialog,
-                           QGraphicsItem, QApplication)
+                           QGraphicsItem, QApplication, QGraphicsDropShadowEffect)
 from PyQt5.QtGui import (QFont, QPen, QColor, QTextCursor, QPainter, 
                         QCursor, QPixmap, QImage, QTextCharFormat)
 from PyQt5.QtCore import Qt, QRectF, QTimer, QBuffer, QPointF
 from PIL import Image
 import io
 from .base_tool import BaseTool
+from image_resizer.ui.styles import TEXT_TOOL_TOOLBAR_STYLE
 
 class TextFormatToolbar(QWidget):
     def __init__(self, parent=None):
         super().__init__(None)
+        self.setObjectName("textFormatToolbar")
         self.setup_ui()
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.text_item = None
         
+        # Apply modern stylesheet
+        self.setStyleSheet(TEXT_TOOL_TOOLBAR_STYLE)
+        
     def setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(2)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(6)
         
-        # Font family combo box
+        # Font family combo box - simple styling
         self.font_combo = QFontComboBox()
         self.font_combo.setCurrentFont(QFont("Arial"))
-        self.font_combo.setFixedWidth(150)
+        self.font_combo.setFixedWidth(120)
+        self.font_combo.setFixedHeight(20)
+        self.font_combo.setToolTip("Font Family")
+        self.font_combo.setStyleSheet("QFontComboBox { border: 1px solid #DBDCDA; background-color: white; }")
         layout.addWidget(self.font_combo)
         
-        # Font size spinner
+        # Font size spinner - simple styling
         self.size_spin = QSpinBox()
         self.size_spin.setRange(8, 196)
         self.size_spin.setValue(24)
-        self.size_spin.setFixedWidth(50)
+        self.size_spin.setFixedWidth(45)
+        self.size_spin.setFixedHeight(20)
+        self.size_spin.setToolTip("Font Size")
+        self.size_spin.setButtonSymbols(QSpinBox.PlusMinus)  # Use + and - symbols
+        self.size_spin.setStyleSheet("QSpinBox { border: 1px solid #DBDCDA; background-color: white; }")
         layout.addWidget(self.size_spin)
         
-        # Bold button
+        # Add a small spacer
+        layout.addSpacing(5)
+        
+        # Bold button with icon
         self.bold_btn = QToolButton()
+        self.bold_btn.setFont(QFont("Arial", 9, QFont.Bold))
         self.bold_btn.setText("B")
         self.bold_btn.setCheckable(True)
+        self.bold_btn.setToolTip("Bold")
+        self.bold_btn.setFixedWidth(24)
+        self.bold_btn.setFixedHeight(20)
+        self.bold_btn.setStyleSheet("QToolButton { background-color: white; border: 1px solid #DBDCDA; }")
         layout.addWidget(self.bold_btn)
         
-        # Italic button
+        # Italic button with icon
         self.italic_btn = QToolButton()
+        self.italic_btn.setFont(QFont("Arial", 9, QFont.StyleItalic))
         self.italic_btn.setText("I")
         self.italic_btn.setCheckable(True)
+        self.italic_btn.setToolTip("Italic")
+        self.italic_btn.setFixedWidth(24)
+        self.italic_btn.setFixedHeight(20)
+        self.italic_btn.setStyleSheet("QToolButton { background-color: white; border: 1px solid #DBDCDA; }")
         layout.addWidget(self.italic_btn)
         
-        # Cancel button
+        # Add a small spacer
+        layout.addSpacing(10)
+        
+        # Cancel button with icon
         self.cancel_btn = QToolButton()
         self.cancel_btn.setText("✕")
+        self.cancel_btn.setToolTip("Cancel")
+        self.cancel_btn.setFixedWidth(24)
+        self.cancel_btn.setFixedHeight(20)
+        self.cancel_btn.setStyleSheet("QToolButton { color: #f44336; background-color: white; border: 1px solid #DBDCDA; }")
         layout.addWidget(self.cancel_btn)
         
-        # Apply button
+        # Apply button with icon
         self.apply_btn = QToolButton()
         self.apply_btn.setText("✓")
+        self.apply_btn.setToolTip("Apply")
+        self.apply_btn.setFixedWidth(24)
+        self.apply_btn.setFixedHeight(20)
+        self.apply_btn.setStyleSheet("QToolButton { color: #4CAF50; background-color: white; border: 1px solid #DBDCDA; }")
         layout.addWidget(self.apply_btn)
         
-        self.setFixedHeight(40)
+        self.setFixedHeight(38)
+        
+        # Remove shadow effect completely
+        self.setGraphicsEffect(None)
 
     def focusOutEvent(self, event):
         # When toolbar loses focus, ensure text item stays editable

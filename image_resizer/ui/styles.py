@@ -1,4 +1,3 @@
-
 MAIN_STYLE = """
     QMainWindow, QWidget {
         background-color: #f5f5f5;
@@ -367,3 +366,29 @@ ERROR_SAVE_DIALOG = """
                     border: 1px solid #242424;
                 }
             """
+
+TEXT_TOOL_TOOLBAR_STYLE = """
+            /* Make background white */
+            QWidget#textFormatToolbar {
+                background-color: #f5f5f5;
+                
+            }
+            
+            /* Style for all controls to have white backgrounds */
+            QToolButton, QFontComboBox, QSpinBox {
+                background-color: white;
+                color: #333333;
+                border: 1px solid #DBDCDA;
+                border-radius: 3px;
+            }
+            
+            /* Hover effect for all controls */
+            QToolButton:hover, QFontComboBox:hover, QSpinBox:hover {
+                border: 1px solid #AAAAAA;
+            }
+            
+            /* Active/pressed state */
+            QToolButton:pressed, QToolButton:checked {
+                background-color: #F0F0F0;
+            }
+        """
