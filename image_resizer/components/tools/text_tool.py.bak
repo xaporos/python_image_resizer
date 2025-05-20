@@ -396,9 +396,7 @@ class TextTool(BaseTool):
             painter.setRenderHint(QPainter.Antialiasing)
             painter.setRenderHint(QPainter.TextAntialiasing)
             
-            # Draw the temporary pixmap onto the target at the correct position
-            painter.drawPixmap(QPointF(scene_pos.x(), scene_pos.y()), temp_pixmap)
-            painter.end()
+            # Draw the temporary pixmap onto the target at the correct position            painter.drawPixmap(QPointF(scene_pos.x(), scene_pos.y()), temp_pixmap)            painter.end()
             
             # Remove the text item from scene
             self.app.scene.removeItem(self.text_item)
