@@ -1399,6 +1399,14 @@ class ImageHandler:
                 self.edited_images.pop(path, None)
                 self.current_dimensions.pop(path, None)
                 self.file_sizes.pop(path, None)
+                self.edited_file_sizes.pop(path, None)  # Clear edited file sizes
+                if path in self.resized_images:
+                    self.resized_images.remove(path)  # Remove from resized images set
+                self.view_scale.pop(path, None)  # Clear view scale
+                
+                # Clear history and redo stacks for this image
+                self.image_histories.pop(path, None)
+                self.image_redo_stacks.pop(path, None)
                 
                 # Remove from list widget
                 for i in range(self.parent.image_list.count()):
@@ -1409,16 +1417,26 @@ class ImageHandler:
                 
                 # Clear view if this was the current image
                 if not self.images:
+                    # Reset everything when all images are gone
                     self.parent.scene.clear()
                     self.parent.size_label.setText("Size: --")
                     self.parent.file_size_label.setText("File size: --")
+                    
+                    # Clear all remaining state
+                    self.current_image = None
+                    self.edited_file_sizes.clear()
+                    self.resized_images.clear()
+                    self.view_scale.clear()
+                    self.image_histories.clear()
+                    self.image_redo_stacks.clear()
+                    self.modified = False
                     
                     # Disable resize and save buttons when no images are left
                     self.parent.toolbar.resize_btn.setEnabled(False)
                     self.parent.toolbar.resize_all_btn.setEnabled(False)
                     self.parent.toolbar.save_btn.setEnabled(False)
                     self.parent.toolbar.save_all_btn.setEnabled(False)
-                break 
+                break
 
     def _update_tool_sizes(self, diagonal, base_diagonal=1500.0):
         """Update line widths, handle sizes, and text sizes for all tools"""
