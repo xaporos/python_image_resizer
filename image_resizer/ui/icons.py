@@ -18,3 +18,6 @@ UNDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "undo.png")
 REDO_ICON_PATH = os.path.join(BASE_DIR, "assets", "redo.png")
 
 APP_ICON_PATH = os.path.join(BASE_DIR, "assets", "app_icon.png")
+
+COMBO_ARROW_PATH = os.path.join(BASE_DIR, "assets", "dropdown-arrow.svg")
+UP_ARROW_PATH = os.path.join(BASE_DIR, "assets", "up-arrow.svg")

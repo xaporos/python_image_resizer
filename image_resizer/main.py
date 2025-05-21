@@ -4,6 +4,9 @@ from image_resizer.ui.main_window import ImageResizerApp
 
 def main():
     app = QApplication(sys.argv)
+
+    app.setStyle("Fusion")
+
     window = ImageResizerApp()
     window.show()
     sys.exit(app.exec_())

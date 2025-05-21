@@ -1,3 +1,7 @@
+from image_resizer.ui.icons import COMBO_ARROW_PATH, UP_ARROW_PATH
+combo_arrow_path = COMBO_ARROW_PATH.replace("\\", "/")
+up_arrow_path = UP_ARROW_PATH.replace("\\", "/")
+
 MAIN_STYLE = """
     QMainWindow, QWidget {
         background-color: #f5f5f5;
@@ -140,7 +144,6 @@ COMBO_BOX_STYLE = """
             QComboBox QAbstractItemView::item {
                 padding: 8px 12px;
                 min-height: 24px;
-          
             }
             QComboBox QAbstractItemView::item:hover {
                 background-color: #f0f7ff;
@@ -225,7 +228,6 @@ ZOOM_SLIDER_STYLE = """
 MAIN_WINDOW_STYLE = """
             QWidget {
                 background-color: white;
-               
                 border-radius: 4px;
             }
         """
@@ -391,4 +393,44 @@ TEXT_TOOL_TOOLBAR_STYLE = """
             QToolButton:pressed, QToolButton:checked {
                 background-color: #F0F0F0;
             }
+        """
+
+FONT_COMBO_STYLE = f"""
+        QFontComboBox {{ 
+            border: 1px solid #DBDCDA; 
+            background-color: white; 
+            }}
+        QComboBox::down-arrow {{
+            image: url("{combo_arrow_path}");
+            width: 12; 
+            height: 12;
+            }}
+        QComboBox::drop-down {{
+            border: none; 
+            background: transparent; 
+            width 24px;
+            }}
+        """
+
+COMBO_SPINBOX_STYLE = f"""
+        QSpinBox {{
+            border: 1px solid #DBDCDA; 
+            background-color: white; 
+            }}
+        QSpinBox::up-button, QSpinBox::down-button {{
+            background: white;
+            width: 14px;
+            padding: 2px 0px 0px 0px;
+            }}
+        QSpinBox::up-arrow {{
+            image: url("{up_arrow_path}");
+            width: 12px;
+            height: 12px;
+            }}
+
+        QSpinBox::down-arrow {{
+            image: url("{combo_arrow_path}");
+            width: 12px;
+            height: 12px;
+            }}
         """

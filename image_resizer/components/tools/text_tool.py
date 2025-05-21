@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QRectF, QTimer, QBuffer, QPointF
 from PIL import Image
 import io
 from .base_tool import BaseTool
-from image_resizer.ui.styles import TEXT_TOOL_TOOLBAR_STYLE
+from image_resizer.ui.styles import TEXT_TOOL_TOOLBAR_STYLE, FONT_COMBO_STYLE, COMBO_SPINBOX_STYLE
 
 class TextFormatToolbar(QWidget):
     def __init__(self, parent=None):
@@ -32,7 +32,8 @@ class TextFormatToolbar(QWidget):
         self.font_combo.setFixedWidth(120)
         self.font_combo.setFixedHeight(20)
         self.font_combo.setToolTip("Font Family")
-        self.font_combo.setStyleSheet("QFontComboBox { border: 1px solid #DBDCDA; background-color: white; }")
+        self.font_combo.setStyleSheet(FONT_COMBO_STYLE)
+
         layout.addWidget(self.font_combo)
         
         # Font size spinner - simple styling
@@ -43,7 +44,7 @@ class TextFormatToolbar(QWidget):
         self.size_spin.setFixedHeight(20)
         self.size_spin.setToolTip("Font Size")
         self.size_spin.setButtonSymbols(QSpinBox.PlusMinus)  # Use + and - symbols
-        self.size_spin.setStyleSheet("QSpinBox { border: 1px solid #DBDCDA; background-color: white; }")
+        self.size_spin.setStyleSheet(COMBO_SPINBOX_STYLE)
         layout.addWidget(self.size_spin)
         
         # Add a small spacer
