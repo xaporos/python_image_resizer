@@ -259,6 +259,8 @@ IMAGE_NAME_LABEL_STYLE = """
                 color: #333333;
                 font-size: 13px;
                 padding: 2px;
+                text-overflow: ellipsis;
+                overflow: hidden;
             }
         """
 

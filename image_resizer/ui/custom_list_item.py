@@ -2,7 +2,7 @@ import os
 
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QPushButton, 
                            QInputDialog, QLineEdit, QListWidget)
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QIcon
 from image_resizer.ui.styles import RENAME_BUTTON_STYLE, IMAGE_NAME_LABEL_STYLE, DELETE_BUTTON_STYLE, RENAME_DIALOG_STYLE
 
@@ -26,6 +26,19 @@ class ImageListItemWidget(QWidget):
         # Image name label
         self.name_label = QLabel(self.image_name)
         self.name_label.setMinimumWidth(150)
+        # Truncate long names with ellipsis
+        self.name_label.setMaximumWidth(200)
+        self.name_label.setToolTip(self.image_name)  # Show full name on hover
+        # Enable text elision with ellipsis
+        self.name_label.setTextFormat(Qt.PlainText)
+        self.name_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        # Set explicit text elision policy
+        self.name_label.setWordWrap(False)
+        # Limit to approximately 26 characters
+        if len(self.image_name) > 26:
+            display_text = self.image_name[:23] + "..."
+            self.name_label.setText(display_text)
+        
         self.name_label.setStyleSheet(IMAGE_NAME_LABEL_STYLE)
         layout.addWidget(self.name_label)
         
@@ -97,7 +110,13 @@ class ImageListItemWidget(QWidget):
                         self.renamed.emit(item, new_name)
                         # Update the internal image name
                         self.image_name = new_name
-                        self.name_label.setText(new_name)
+                        # Update label with truncated text if needed
+                        if len(new_name) > 20:
+                            display_text = new_name[:17] + "..."
+                            self.name_label.setText(display_text)
+                        else:
+                            self.name_label.setText(new_name)
+                        self.name_label.setToolTip(new_name)  # Update tooltip with new name
                         break
             
     def delete_clicked(self):
