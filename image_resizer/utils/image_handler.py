@@ -408,10 +408,14 @@ class ImageHandler:
                 qimage = QImage.fromData(img_byte_arr.getvalue())
                 pixmap = QPixmap.fromImage(qimage)
                 
-                # Store edited version
+                # Store edited version and dimensions
                 self.edited_images[file_path] = pixmap
                 self.current_dimensions[file_path] = resized_image.size
-                self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
+                self.resized_images.add(file_path)  # Mark as resized
+                
+                # Calculate the accurate file size directly using our dedicated method
+                accurate_file_size = self.calculate_file_size(pixmap, quality)
+                self.edited_file_sizes[file_path] = accurate_file_size
                 
                 # If this is the current image, update the preview
                 if item == current_item:
@@ -429,7 +433,8 @@ class ImageHandler:
                     # Store view scale for current image
                     self.view_scale[file_path] = self.parent.view.transform().m11()
                     
-                    self.update_info_label()
+                    # Update the file size label with the correct value
+                    self.parent.file_size_label.setText(f"File size: {accurate_file_size:.2f}MB")
                 
                 # Force UI update every few processed files
                 if idx % 3 == 0:
@@ -526,7 +531,10 @@ class ImageHandler:
             # Use edited version with all its modifications
             pixmap = self.edited_images[file_path]
             width, height = self.current_dimensions[file_path]
-            file_size = self.edited_file_sizes.get(file_path, self.file_sizes.get(file_path, 0))
+            
+            # Calculate accurate file size using the pixmap with the current quality setting
+            accurate_file_size = self.calculate_file_size(pixmap)
+            self.edited_file_sizes[file_path] = accurate_file_size
             
             # Add pixmap to scene
             scene_pixmap_item = self.parent.scene.addPixmap(pixmap)
@@ -584,7 +592,7 @@ class ImageHandler:
         
         # Update info labels with correct dimensions and file size
         self.parent.size_label.setText(f"Size: {width} × {height}px")
-        self.parent.file_size_label.setText(f"File size: {file_size:.2f}MB")
+        self.parent.file_size_label.setText(f"File size: {self.edited_file_sizes.get(file_path, self.file_sizes.get(file_path, 0)):.2f}MB")
         
         # Adjust line width for drawing tools based on actual image dimensions
         actual_diagonal = (width**2 + height**2)**0.5
