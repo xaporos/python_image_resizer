@@ -196,7 +196,7 @@ SLIDER_STYLE = """
 
 ZOOM_SLIDER_STYLE = """
             QSlider {
-                margin: 0;
+                margin: 4;
                 padding: 0;
                 background-color: white;
             }
