@@ -168,14 +168,13 @@ class ImageHandler:
             self.current_dimensions[file_path] = (actual_width, actual_height)
             self.resized_images.add(file_path)  # Mark as resized ONLY when explicitly using resize
             
-            # Calculate and store file size
-            img_byte_arr = BytesIO()
-            resized_image.save(img_byte_arr, format='JPEG', quality=quality)
-            self.edited_file_sizes[file_path] = len(img_byte_arr.getvalue()) / (1024 * 1024)
+            # Calculate and store file size using the accurate method
+            accurate_file_size = self.calculate_file_size(pixmap, quality)
+            self.edited_file_sizes[file_path] = accurate_file_size
             
             # Update info labels
             self.parent.size_label.setText(f"Size: {actual_width} × {actual_height}px")
-            self.parent.file_size_label.setText(f"File size: {self.edited_file_sizes[file_path]:.2f}MB")
+            self.parent.file_size_label.setText(f"File size: {accurate_file_size:.2f}MB")
             
             # Reset view transform and fit to view
             self.parent.view.resetTransform()
